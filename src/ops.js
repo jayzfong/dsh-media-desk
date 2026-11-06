@@ -185,6 +185,14 @@ const handlers = {
     if (typeof op.title === 'string') production.title = op.title.slice(0, 200)
     if (typeof op.coverText === 'string') production.coverText = op.coverText.slice(0, 40)
     if (typeof op.article === 'string') production.article = op.article.slice(0, 200000)
+    if (Array.isArray(op.images)) {
+      for (const [index, row] of op.images.entries()) {
+        const image = production.images?.[index]
+        if (!image || !row || typeof row !== 'object') continue
+        if (typeof row.title === 'string') image.title = row.title.slice(0, 40)
+        if (typeof row.body === 'string') image.body = row.body.slice(0, 200)
+      }
+    }
     return { text: tr('修改《{title}》', { title: short(production.title) }), target: item.id, kind: 'item' }
   },
   add_person(state, op, now) {

@@ -41,6 +41,21 @@ export function normalizePlan(plan, settings, title, mode = 'video') {
   }
 }
 
+/** 从已保存的策划案恢复出生成图片所需的 plan。 */
+function planFromProduction(production) {
+  if (!production) return null
+  return {
+    title: production.title,
+    coverText: production.coverText,
+    facts: production.facts ?? [],
+    outline: production.outline ?? [],
+    cover: production.cover?.prompt || production.title,
+    characters: production.characters ?? '',
+    images: (production.images ?? []).map(({ title = '', body = '', caption = '', anchor = '', prompt = '' }) => ({ title, body, caption, anchor, prompt })),
+    shots: production.shots ?? [],
+  }
+}
+
 function parseTarget(target) {
   if (target === 'cover') return { kind: 'cover' }
   const match = /^(image|shot):(\d{1,2})$/.exec(String(target))
@@ -179,20 +194,42 @@ export class Producer {
     }, { undoable: false })
   }
 
-  async start(id, mode = 'video') {
+  async start(id, mode = 'video', { planOnly = false } = {}) {
     if (this.jobs.has(id)) return false
     const state = await this.store.read()
     const item = state.items.find(row => row.id === id)
     if (!item) throw Object.assign(new Error(tr('找不到这条灵感')), { status: 404 })
     const resolvedMode = normalizeMode(mode)
-    const job = { mode: resolvedMode, stage: 'brief', text: '', planText: '', controller: new AbortController() }
+    const job = { mode: resolvedMode, planOnly: Boolean(planOnly), fromPlan: false, stage: planOnly ? 'plan' : 'brief', text: '', planText: '', controller: new AbortController() }
     this.jobs.set(id, job)
     await this.store.mutate('开始成稿', (draft) => {
       const target = draft.items.find(row => row.id === id)
-      storeProduction(target, resolvedMode, { status: 'running', mode: resolvedMode, stage: 'brief', startedAt: new Date().toISOString(), title: target.title, article: '', cover: null, images: [], shots: [] })
+      storeProduction(target, resolvedMode, { status: 'running', mode: resolvedMode, stage: job.stage, startedAt: new Date().toISOString(), title: target.title, article: '', cover: null, images: [], shots: [] })
       return draft
     }, { undoable: false })
     // 不等待：浏览器靠轮询拿进度
+    this.run(id, job).catch(() => {}).finally(() => this.jobs.delete(id))
+    return true
+  }
+
+  /** 策划案已经确认后，生成正文和图片；图片在 article 模式下逐张生成。 */
+  async continue(id, mode = 'article') {
+    if (this.jobs.has(id)) return false
+    const resolvedMode = normalizeMode(mode)
+    const state = await this.store.read()
+    const item = state.items.find(row => row.id === id)
+    if (!item) throw Object.assign(new Error(tr('找不到这条灵感')), { status: 404 })
+    const production = productionOf(item, resolvedMode)
+    if (!production || !Array.isArray(production.images)) {
+      throw Object.assign(new Error(tr('还没有可用的策划案')), { status: 400 })
+    }
+    const job = { mode: resolvedMode, planOnly: false, fromPlan: true, stage: 'making', text: '', planText: '', controller: new AbortController() }
+    this.jobs.set(id, job)
+    await this.patch(id, resolvedMode, (next) => {
+      next.status = 'running'
+      next.stage = 'making'
+      next.error = null
+    })
     this.run(id, job).catch(() => {}).finally(() => this.jobs.delete(id))
     return true
   }
@@ -209,26 +246,52 @@ export class Producer {
       const state = await this.store.read()
       const item = state.items.find(row => row.id === id)
       const snapshot = JSON.parse(JSON.stringify(state))
-      // 图文和视频可以分别设置配图数量；没填图文数量时沿用视频配置
-      const imageCount = mode === 'article' ? (settings.articleImageCount ?? settings.imageCount) : settings.imageCount
-      const planSettings = imageCount === settings.imageCount ? settings : { ...settings, imageCount }
-
-      signal.throwIfAborted()
-      const backup = normalizePlan(fallbackPlan(item, '', planSettings, mode), planSettings, item.title, mode)
 
       let plan
-      try {
-        const prompts = planPrompts(snapshot, item, planSettings, mode)
-        const { text } = await this.callText({ ...prompts, maxTokens: 3000, light: true, signal: AbortSignal.any([signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]), onText: (delta) => { job.planText += delta } })
-        plan = normalizePlan(extractJson(text), planSettings, item.title, mode)
-      } catch (err) {
-        if (signal.aborted) throw err
-        plan = backup
-      }
-      // 模型漏掉配图或分镜时用模板补上，流水线不能因此少一块
-      if (plan.images.length < imageCount) plan.images = [...plan.images, ...backup.images.slice(plan.images.length)]
-      if (mode === 'video' && plan.shots.length < settings.shotCount) plan.shots = [...plan.shots, ...backup.shots.slice(plan.shots.length).map((row, i) => ({ ...row, no: plan.shots.length + i + 1 }))]
+      if (job.fromPlan) {
+        plan = planFromProduction(productionOf(item, mode))
+        if (!plan) throw new Error(tr('还没有可用的策划案'))
+      } else {
+        // 图文和视频可以分别设置配图数量；没填图文数量时沿用视频配置
+        const imageCount = mode === 'article' ? (settings.articleImageCount ?? settings.imageCount) : settings.imageCount
+        const planSettings = imageCount === settings.imageCount ? settings : { ...settings, imageCount }
 
+        signal.throwIfAborted()
+        const backup = normalizePlan(fallbackPlan(item, '', planSettings, mode), planSettings, item.title, mode)
+
+        try {
+          const prompts = planPrompts(snapshot, item, planSettings, mode)
+          const { text } = await this.callText({ ...prompts, maxTokens: 3000, light: true, signal: AbortSignal.any([signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]), onText: (delta) => { job.planText += delta } })
+          plan = normalizePlan(extractJson(text), planSettings, item.title, mode)
+        } catch (err) {
+          if (signal.aborted) throw err
+          plan = backup
+        }
+        // 模型漏掉配图或分镜时用模板补上，流水线不能因此少一块
+        if (plan.images.length < imageCount) plan.images = [...plan.images, ...backup.images.slice(plan.images.length)]
+        if (mode === 'video' && plan.shots.length < settings.shotCount) plan.shots = [...plan.shots, ...backup.shots.slice(plan.shots.length).map((row, i) => ({ ...row, no: plan.shots.length + i + 1 }))]
+
+        if (job.planOnly) {
+          await this.patch(id, mode, (production) => {
+            production.mode = mode
+            production.status = 'planned'
+            production.stage = 'plan'
+            production.title = plan.title
+            production.coverText = plan.coverText
+            production.facts = plan.facts
+            production.outline = plan.outline
+            production.characters = plan.characters
+            production.cover = { prompt: plan.cover, status: 'idle' }
+            production.images = plan.images.map(row => ({ ...row, status: 'idle' }))
+            production.shots = []
+            production.article = ''
+            production.error = null
+          })
+          return
+        }
+      }
+
+      // 策划案定了之后，文章和所有画面同时开工；图文图片按顺序一张张生成
       const ready = imageReady(settings)
       const initial = ready ? 'pending' : 'skipped'
       job.stage = 'making'
@@ -243,10 +306,10 @@ export class Producer {
         production.cover = { prompt: plan.cover, status: initial }
         production.images = plan.images.map(row => ({ ...row, status: initial }))
         production.shots = plan.shots.map(row => ({ ...row, status: initial }))
+        production.error = null
         if (!ready) production.needsProvider = true
       })
 
-      // 策划案定了之后，文章和所有画面同时开工
       const writeArticle = async () => {
         let engine = 'local'
         let notice = null
@@ -283,7 +346,9 @@ export class Producer {
             await this.renderAsset(id, mode, target, settings, signal)
           }
         }
-        for (let i = 0; i < CONCURRENCY; i += 1) tasks.push(worker())
+        // 小红书图文逐张生成，方便一张张看效果；视频仍并行
+        const workers = mode === 'article' ? 1 : CONCURRENCY
+        for (let i = 0; i < workers; i += 1) tasks.push(worker())
       }
       await Promise.all(tasks)
       if (signal.aborted) throw new Error('cancelled')

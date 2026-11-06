@@ -36,7 +36,7 @@ test('图文模式：只生成正文和配图，不生成视频分镜', async ()
   const store = new Store(dir)
   await store.read()
   const settings = new Settings(dir)
-  await settings.update({ imageCount: 1, shotCount: 2 })
+  await settings.update({ imageCount: 1, articleImageCount: 1, shotCount: 2 })
 
   const callText = async ({ system }) => {
     if (system.includes('策划案')) {
@@ -49,15 +49,67 @@ test('图文模式：只生成正文和配图，不生成视频分镜', async ()
   }
   const producer = new Producer({ store, settings, callText, generate: async () => { throw new Error('没有生图服务') } })
   try {
-    await producer.start('seed_2', 'article')
+    await producer.start('seed_2', 'article', { planOnly: true })
     for (let i = 0; i < 200 && producer.isRunning('seed_2'); i += 1) await new Promise(r => setTimeout(r, 5))
-    const item = (await store.read()).items.find(row => row.id === 'seed_2')
-    const production = item.productions.article
+    let item = (await store.read()).items.find(row => row.id === 'seed_2')
+    let production = item.productions.article
+    assert.equal(production.status, 'planned')
+    assert.equal(production.stage, 'plan')
+    assert.equal(production.article, '')
+    assert.equal(production.images.length, 1)
+    assert.equal(production.images[0].title, '')
+
+    await producer.continue('seed_2', 'article')
+    for (let i = 0; i < 200 && producer.isRunning('seed_2'); i += 1) await new Promise(r => setTimeout(r, 5))
+    item = (await store.read()).items.find(row => row.id === 'seed_2')
+    production = item.productions.article
     assert.equal(production.status, 'done')
     assert.equal(production.mode, 'article')
     assert.equal(production.shots.length, 0)
     assert.match(production.article, /## 第一节/)
     assert.equal(item.production.mode, 'article')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+
+test('小红书图文确认策划案后逐张生成图片', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'media-desk-article-seq-'))
+  const store = new Store(dir)
+  await store.read()
+  const settings = new Settings(dir)
+  await settings.update({ imageCount: 0, articleImageCount: 2, shotCount: 0, image: { baseUrl: 'https://i.example/v1', model: 'm', apiKey: 'k' } })
+  const callText = async ({ system }) => {
+    if (system.includes('策划案')) {
+      return { text: JSON.stringify({ title: '逐张标题', coverText: '封面字', facts: [], outline: ['第一节'], cover: 'cover', images: [{ anchor: '第一节', title: '第一张', body: '正文', prompt: 'one' }, { anchor: '第一节', title: '第二张', body: '正文', prompt: 'two' }] }), model: 'mock' }
+    }
+    return { text: '# 逐张标题\n\n## 第一节\n正文', model: 'mock' }
+  }
+  let active = 0
+  let maxActive = 0
+  const producer = new Producer({
+    store,
+    settings,
+    callText,
+    generate: async () => {
+      active += 1
+      maxActive = Math.max(maxActive, active)
+      await new Promise(r => setTimeout(r, 5))
+      active -= 1
+      return { buffer: Buffer.from([1, 2, 3]), ext: '.png' }
+    },
+  })
+  try {
+    await producer.start('seed_2', 'article', { planOnly: true })
+    for (let i = 0; i < 200 && producer.isRunning('seed_2'); i += 1) await new Promise(r => setTimeout(r, 5))
+    await producer.continue('seed_2', 'article')
+    for (let i = 0; i < 200 && producer.isRunning('seed_2'); i += 1) await new Promise(r => setTimeout(r, 5))
+    const production = (await store.read()).items.find(row => row.id === 'seed_2').productions.article
+    assert.equal(production.status, 'done')
+    assert.equal(production.images.length, 2)
+    assert.ok(production.images.every(image => image.status === 'done'))
+    assert.equal(maxActive, 1)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

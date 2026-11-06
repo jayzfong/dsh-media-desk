@@ -321,6 +321,22 @@ button.md-stamp:not(:disabled):hover { transform: scale(1.08) rotate(-2deg); }
 /* 稿面 */
 .md-sheet { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 10px 10px 10px 0; container-type: size; overflow: hidden auto; }
 .md-sheet-tabs { flex: none; display: flex; justify-content: flex-end; padding: 2px 4px 9px; }
+.md-plan { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 2px 4px 8px; overflow: hidden; }
+.md-plan-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 2px 4px; }
+.md-plan-head h2 { font-size: 18px; line-height: 26px; font-weight: 600; }
+.md-plan-head p { margin-top: 3px; color: var(--ink3); font-size: 12.5px; line-height: 19px; }
+.md-plan-count { flex: none; padding-top: 4px; color: var(--ink3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.md-plan-copy { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: 0 4px; }
+.md-plan-cards { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-content: start; padding: 2px 4px 10px; }
+.md-plan-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-xl); background: var(--card); box-shadow: var(--dsw-elevation-soft); }
+.md-plan-no { position: absolute; right: 12px; top: 10px; color: var(--ink4); font-family: var(--latin-serif); font-size: 12px; font-variant-numeric: tabular-nums; }
+.md-plan-card .md-field > span { font-size: 11.5px; }
+.md-plan-card .md-field input { height: 32px; font-size: 13px; }
+.md-plan-card .md-field textarea { font-size: 12.5px; line-height: 19px; }
+.md-plan-prompt { color: var(--ink4); font-size: 11px; line-height: 16px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.md-plan-foot { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 4px 0; border-top: .5px solid var(--line); }
+.md-plan-loading { flex: 1; min-height: 220px; display: flex; align-items: center; justify-content: center; color: var(--ink3); font-size: 13px; }
+@container (max-width: 620px) { .md-plan-copy, .md-plan-cards { grid-template-columns: minmax(0, 1fr); } }
 .md-bento { position: relative; flex: 1; height: auto; min-height: 0; display: grid; gap: 10px; grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "hero hero" "article shots"; }
 .md-tile { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: var(--r-xl); background: var(--card); box-shadow: var(--dsw-elevation-soft); transition: opacity .35s var(--ease), transform .45s cubic-bezier(.2, 1.2, .4, 1), filter .35s var(--ease); animation: md-rise .6s var(--ease) both; }
 .md-tile-article { grid-area: article; animation-delay: 70ms; }

@@ -94,10 +94,20 @@ export function closeItem() {
   setDesk({ focusId: null, sheetOrigin: null, studioDock: false, chatQuote: null })
 }
 
-/** 一键成稿。任务在 Host 里跑，这里只负责启动和看进度。 */
-export async function runProduce(id, mode = 'video') {
+/** 一键成稿。图文先只出策划案，确认后再逐张生成。 */
+export async function runProduce(id, mode = 'video', { planOnly = false } = {}) {
   try {
-    const data = await request('produce', { id, mode })
+    const data = await request('produce', { id, mode, planOnly })
+    setDesk({ state: data.state })
+  } catch (err) {
+    report(err)
+  }
+}
+
+/** 策划案确认后，生成正文和图片。 */
+export async function continueProduce(id, mode = 'article') {
+  try {
+    const data = await request('produce/continue', { id, mode })
     setDesk({ state: data.state })
   } catch (err) {
     report(err)
@@ -181,7 +191,7 @@ function runActions(actions, mode = 'video') {
   for (const action of actions) {
     if (action.type === 'produce' && action.id) {
       openItem(action.id)
-      runProduce(action.id, mode)
+      runProduce(action.id, mode, { planOnly: mode === 'article' })
     }
     if (action.type === 'open' && action.id) openItem(action.id)
     if (action.type === 'nav' && action.view) setDesk({ view: action.view })

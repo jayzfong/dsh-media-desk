@@ -2,7 +2,7 @@
 import React from 'react'
 import { ChatPanel } from './chat.jsx'
 import { downloadCover } from './cover.js'
-import { cancelProduce, closeItem, dispatchOps, regenAsset, revealSaved, runProduce, saveProduced, setDesk, toast, useDesk, watchProduction } from './desk.js'
+import { cancelProduce, closeItem, continueProduce, dispatchOps, regenAsset, revealSaved, runProduce, saveProduced, setDesk, toast, useDesk, watchProduction } from './desk.js'
 import { plural, t } from './i18n.js'
 import { Icon, IconButton, Segmented } from './ui.jsx'
 import { SPRING_SNAP, SPRING_SOFT, STYLE_CATEGORIES, fmtDate, fmtWhen, productionOf, reducedMotion, renderMarkdown, styleIcon, textLength, toLocalInput } from './util.js'
@@ -70,7 +70,7 @@ function ProgressCard({ production, live, settings, mode = 'video' }) {
     { label: t('标题和封面字'), done: planned, active: !planned },
     { label: scriptLabel, done: Boolean(production.article), active: planned && !production.article },
     ...(ready ? [
-      { label: t('封面和配图 {done}/{total}', { done: count(visuals), total: visuals.length || 1 + (settings?.imageCount ?? 2) }), done: planned && visuals.length > 0 && !visuals.some(isBusy), active: visuals.some(isBusy) },
+      { label: t('封面和配图 {done}/{total}', { done: count(visuals), total: visuals.length || 1 + (articleMode ? (settings?.articleImageCount ?? 2) : (settings?.imageCount ?? 2)) }), done: planned && visuals.length > 0 && !visuals.some(isBusy), active: visuals.some(isBusy) },
       ...(articleMode ? [] : [{ label: t('分镜 {done}/{total}', { done: count(shots), total: shots.length || settings?.shotCount || 6 }), done: planned && shots.length > 0 && !shots.some(isBusy), active: shots.some(isBusy) }]),
     ] : []),
   ]
@@ -107,7 +107,7 @@ function IdeaCard({ item, live, settings, production, mode = 'video' }) {
           </select>
         </label>
       ) : null}
-      {!production || !['running', 'done'].includes(production.status) ? <button type="button" className="md-go" onClick={() => runProduce(item.id, mode)}>{articleMode ? t('生成小红书图文') : t('一键成稿')}</button> : null}
+      {!production || !['running', 'done', 'planned'].includes(production.status) ? <button type="button" className="md-go" onClick={() => runProduce(item.id, mode, { planOnly: articleMode })}>{articleMode ? t('生成小红书图文') : t('一键成稿')}</button> : null}
       {running ? <ProgressCard production={{ ...production, id: item.id }} live={live} settings={settings} mode={mode} /> : null}
       {production?.status === 'failed' ? <p className="md-idea-hint is-error">{production.error}</p> : null}
       {!running && !settings?.imageReady ? <p className="md-idea-hint">{articleMode ? t('接入生图模型后，封面和小红书配图也会画好。') : t('接入生图模型后，封面和分镜也会画好。')}<button type="button" onClick={() => setDesk({ settingsOpen: true })}>{t('去接入')}</button></p> : null}
@@ -438,6 +438,69 @@ function Viewer({ item, production, mode = 'video', target, onChange, onClose })
   )
 }
 
+/** 小红书图文策划案：先确认每张卡片的标题和正文，再逐张生成图片。 */
+function PlanEditor({ item, production, mode }) {
+  const [draft, setDraft] = React.useState(() => ({
+    title: production?.title ?? '',
+    coverText: production?.coverText ?? '',
+    images: (production?.images ?? []).map(image => ({ title: image.title ?? '', body: image.body ?? '' })),
+  }))
+  const [saving, setSaving] = React.useState(false)
+  const setImage = (index, key, value) => setDraft((current) => ({
+    ...current,
+    images: current.images.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
+  }))
+  const confirm = async () => {
+    setSaving(true)
+    const saved = await dispatchOps([{
+      op: 'update_production',
+      id: item.id,
+      mode,
+      title: draft.title,
+      coverText: draft.coverText,
+      images: draft.images.map(({ title, body }) => ({ title, body })),
+    }], { label: t('确认小红书策划案'), silent: true })
+    if (saved) await continueProduce(item.id, mode)
+    setSaving(false)
+  }
+  return (
+    <div className="md-plan">
+      <header className="md-plan-head">
+        <div>
+          <h2>{t('小红书图文策划案')}</h2>
+          <p>{t('先确认标题和每张卡片的文字，再开始生成；图片会一张一张生成。')}</p>
+        </div>
+        <span className="md-plan-count">{t('{n} 张', { n: draft.images.length, s: plural(draft.images.length, '', 's') })}</span>
+      </header>
+      <div className="md-plan-copy">
+        <label className="md-field"><span>{t('笔记标题')}</span><input value={draft.title} onChange={e => setDraft(current => ({ ...current, title: e.target.value }))} maxLength={40} /></label>
+        <label className="md-field"><span>{t('封面大字')}</span><input value={draft.coverText} onChange={e => setDraft(current => ({ ...current, coverText: e.target.value }))} maxLength={20} /></label>
+      </div>
+      <div className="md-plan-cards">
+        {draft.images.map((image, index) => (
+          <article className="md-plan-card" key={index}>
+            <span className="md-plan-no">{String(index + 1).padStart(2, '0')}</span>
+            <label className="md-field">
+              <span>{t('卡片标题')}</span>
+              <input value={image.title} onChange={e => setImage(index, 'title', e.target.value)} maxLength={30} placeholder={t('这一张的标题')} />
+            </label>
+            <label className="md-field">
+              <span>{t('卡片正文')}</span>
+              <textarea rows={3} value={image.body} onChange={e => setImage(index, 'body', e.target.value)} maxLength={200} placeholder={t('这一张要讲的正文')} />
+            </label>
+            {production?.images?.[index]?.prompt ? <small className="md-plan-prompt">{production.images[index].prompt}</small> : null}
+          </article>
+        ))}
+      </div>
+      <footer className="md-plan-foot">
+        <button type="button" className="md-btn" disabled={saving} onClick={() => runProduce(item.id, mode, { planOnly: true })}>{t('重新策划')}</button>
+        <span style={{ flex: 1 }} />
+        <button type="button" className="md-btn is-primary" disabled={saving} onClick={confirm}>{saving ? <span className="md-shimmer">{t('正在准备…')}</span> : t('确认，开始逐张生成')}</button>
+      </footer>
+    </div>
+  )
+}
+
 function Sheet({ item, live, mode, onModeChange, production }) {
   const settings = useDesk(s => s.settings)
   const [open, setOpen] = React.useState(null)
@@ -502,26 +565,35 @@ function Sheet({ item, live, mode, onModeChange, production }) {
     },
     className: `md-tile md-tile-${name} ${open === name ? 'is-open' : ''}`,
   })
+  const planned = mode === 'article' && production?.status === 'planned'
+  const planning = mode === 'article' && production?.status === 'running' && production?.stage === 'plan'
+  const content = planned ? (
+    <PlanEditor item={item} production={production} mode={mode} />
+  ) : planning ? (
+    <div className="md-plan-loading"><span className="md-shimmer">{t('正在生成小红书策划案…')}</span></div>
+  ) : (
+    <div className={`md-bento ${open ? 'has-open' : ''}`} ref={bento}>
+      <HeroTile item={item} live={live} production={production} mode={mode} onView={setViewing} />
+      <section {...tile('article')}>
+        <ArticleTile item={item} live={live} production={production} mode={mode} open={open === 'article'} onToggle={() => toggle('article')} onView={setViewing} tileRef={articleRef} />
+      </section>
+      {mode === 'video' ? (
+        <section {...tile('shots')}>
+          <ShotsTile item={item} production={production} live={live} mode={mode} count={settings?.shotCount ?? 6} open={open === 'shots'} onToggle={() => toggle('shots')} onView={setViewing} />
+        </section>
+      ) : (
+        <section {...tile('images')}>
+          <FiguresTile item={item} production={production} mode={mode} count={settings?.articleImageCount ?? settings?.imageCount ?? 2} open={open === 'images'} onToggle={() => toggle('images')} onView={setViewing} />
+        </section>
+      )}
+    </div>
+  )
   return (
     <div className="md-sheet">
       <div className="md-sheet-tabs">
         <Segmented label={t('成稿模式')} value={mode} onChange={onModeChange} options={[{ value: 'video', label: t('视频') }, { value: 'article', label: t('图文') }]} />
       </div>
-      <div className={`md-bento ${open ? 'has-open' : ''}`} ref={bento}>
-        <HeroTile item={item} live={live} production={production} mode={mode} onView={setViewing} />
-        <section {...tile('article')}>
-          <ArticleTile item={item} live={live} production={production} mode={mode} open={open === 'article'} onToggle={() => toggle('article')} onView={setViewing} tileRef={articleRef} />
-        </section>
-        {mode === 'video' ? (
-          <section {...tile('shots')}>
-            <ShotsTile item={item} production={production} live={live} mode={mode} count={settings?.shotCount ?? 6} open={open === 'shots'} onToggle={() => toggle('shots')} onView={setViewing} />
-          </section>
-        ) : (
-          <section {...tile('images')}>
-            <FiguresTile item={item} production={production} mode={mode} count={settings?.imageCount ?? 2} open={open === 'images'} onToggle={() => toggle('images')} onView={setViewing} />
-          </section>
-        )}
-      </div>
+      {content}
       {viewing ? <Viewer item={item} production={production} mode={mode} target={viewing} onChange={setViewing} onClose={() => setViewing(null)} /> : null}
     </div>
   )
