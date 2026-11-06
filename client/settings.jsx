@@ -32,7 +32,7 @@ export function SettingsDialog() {
   React.useEffect(() => {
     if (!open || !settings) return
     const { image } = settings
-    setForm({ language: settings.language ?? 'auto', baseUrl: image.baseUrl, model: image.model, apiKey: '', size: image.size, quality: image.quality, extra: image.extra, exportDir: settings.exportDir ?? '', imageCount: settings.imageCount, shotCount: settings.shotCount, articleImageCount: settings.articleImageCount ?? 3, articleSize: settings.articleSize ?? '1024x1536' })
+    setForm({ language: settings.language ?? 'auto', baseUrl: image.baseUrl, model: image.model, apiKey: '', size: image.size, quality: image.quality, extra: image.extra, exportDir: settings.exportDir ?? '', imageCount: settings.imageCount, shotCount: settings.shotCount, articleImageCount: settings.articleImageCount ?? 3, articleSize: settings.articleSize || '1024x1536' })
     setSample(null)
   }, [open, settings])
   if (!open || !form) return null
