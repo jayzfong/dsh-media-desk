@@ -241,6 +241,7 @@ export const PAGES = {
   图文图片尺寸: 'Article image size',
   留空沿用通用尺寸: 'Blank uses the shared size',
   '图文图片尺寸留空时，沿用下面「高级」里的通用尺寸。': 'Leave the article image size blank to use the shared size under Advanced.',
+  '当前 Host 还是旧版本，重启 DeepSeek Harness 后图文设置才会保存生效。': 'The Host is still running the previous build. Restart DeepSeek Harness for article settings to take effect.',
   分镜格数: 'Storyboard frames',
   高级: 'Advanced',
   尺寸: 'Size',

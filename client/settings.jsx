@@ -99,6 +99,7 @@ export function SettingsDialog() {
             <label className="md-field"><span>{t('图文图片尺寸')}</span><input value={form.articleSize} onChange={e => set('articleSize', e.target.value)} placeholder={t('留空沿用通用尺寸')} /></label>
           </div>
           <small>{t('图文图片尺寸留空时，沿用下面「高级」里的通用尺寸。')}</small>
+          {settings.articleImageCount === undefined ? <small>{t('当前 Host 还是旧版本，重启 DeepSeek Harness 后图文设置才会保存生效。')}</small> : null}
         </div>
         <button type="button" className="md-advanced" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><Icon name={advanced ? 'chevD' : 'chevR'} size={12} />{t('高级')}</button>
         {advanced ? (
