@@ -207,21 +207,24 @@ export class Producer {
       const state = await this.store.read()
       const item = state.items.find(row => row.id === id)
       const snapshot = JSON.parse(JSON.stringify(state))
+      // 图文和视频可以分别设置配图数量；没填图文数量时沿用视频配置
+      const imageCount = mode === 'article' ? (settings.articleImageCount ?? settings.imageCount) : settings.imageCount
+      const planSettings = imageCount === settings.imageCount ? settings : { ...settings, imageCount }
 
       signal.throwIfAborted()
-      const backup = normalizePlan(fallbackPlan(item, '', settings, mode), settings, item.title, mode)
+      const backup = normalizePlan(fallbackPlan(item, '', planSettings, mode), planSettings, item.title, mode)
 
       let plan
       try {
-        const prompts = planPrompts(snapshot, item, settings, mode)
+        const prompts = planPrompts(snapshot, item, planSettings, mode)
         const { text } = await this.callText({ ...prompts, maxTokens: 3000, light: true, signal: AbortSignal.any([signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]), onText: (delta) => { job.planText += delta } })
-        plan = normalizePlan(extractJson(text), settings, item.title, mode)
+        plan = normalizePlan(extractJson(text), planSettings, item.title, mode)
       } catch (err) {
         if (signal.aborted) throw err
         plan = backup
       }
       // 模型漏掉配图或分镜时用模板补上，流水线不能因此少一块
-      if (plan.images.length < settings.imageCount) plan.images = [...plan.images, ...backup.images.slice(plan.images.length)]
+      if (plan.images.length < imageCount) plan.images = [...plan.images, ...backup.images.slice(plan.images.length)]
       if (mode === 'video' && plan.shots.length < settings.shotCount) plan.shots = [...plan.shots, ...backup.shots.slice(plan.shots.length).map((row, i) => ({ ...row, no: plan.shots.length + i + 1 }))]
 
       const ready = imageReady(settings)
@@ -333,7 +336,8 @@ export class Producer {
     })
     if (!prompt) return
     try {
-      const { buffer, ext } = await this.generateWithRetry(settings.image, prompt, signal)
+      const image = mode === 'article' && settings.articleSize ? { ...settings.image, size: settings.articleSize } : settings.image
+      const { buffer, ext } = await this.generateWithRetry(image, prompt, signal)
       const name = `${newId('g')}${ext}`
       await writeFile(join(this.store.filesDir, name), buffer)
       await this.patch(id, mode, (production) => {

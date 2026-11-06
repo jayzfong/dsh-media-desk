@@ -9,6 +9,8 @@ const DEFAULTS = {
   exportDir: '',
   imageCount: 2,
   shotCount: 6,
+  articleImageCount: 3,
+  articleSize: '',
   language: 'auto',
 }
 
@@ -66,6 +68,8 @@ export class Settings {
     if (typeof patch.voice === 'string') next.voice = patch.voice.slice(0, 8000)
     if (typeof patch.exportDir === 'string') next.exportDir = patch.exportDir.trim().slice(0, 500)
     if (patch.imageCount !== undefined) next.imageCount = clamp(patch.imageCount, 0, 4, current.imageCount)
+    if (patch.articleImageCount !== undefined) next.articleImageCount = clamp(patch.articleImageCount, 0, 8, current.articleImageCount)
+    if (typeof patch.articleSize === 'string') next.articleSize = patch.articleSize.trim().slice(0, 200)
     if (['auto', 'zh', 'en'].includes(patch.language)) next.language = patch.language
     if (patch.shotCount !== undefined) next.shotCount = clamp(patch.shotCount, 0, 12, current.shotCount)
     const tmp = `${this.file}.${process.pid}.tmp`

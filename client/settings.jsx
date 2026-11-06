@@ -32,7 +32,7 @@ export function SettingsDialog() {
   React.useEffect(() => {
     if (!open || !settings) return
     const { image } = settings
-    setForm({ language: settings.language ?? 'auto', baseUrl: image.baseUrl, model: image.model, apiKey: '', size: image.size, quality: image.quality, extra: image.extra, exportDir: settings.exportDir ?? '', imageCount: settings.imageCount, shotCount: settings.shotCount })
+    setForm({ language: settings.language ?? 'auto', baseUrl: image.baseUrl, model: image.model, apiKey: '', size: image.size, quality: image.quality, extra: image.extra, exportDir: settings.exportDir ?? '', imageCount: settings.imageCount, shotCount: settings.shotCount, articleImageCount: settings.articleImageCount ?? 3, articleSize: settings.articleSize ?? '' })
     setSample(null)
   }, [open, settings])
   if (!open || !form) return null
@@ -41,7 +41,7 @@ export function SettingsDialog() {
   const payload = () => ({
     language: form.language,
     image: { baseUrl: form.baseUrl, model: form.model, apiKey: form.apiKey, size: form.size, quality: form.quality, extra: form.extra },
-    exportDir: form.exportDir, imageCount: Number(form.imageCount), shotCount: Number(form.shotCount),
+    exportDir: form.exportDir, imageCount: Number(form.imageCount), shotCount: Number(form.shotCount), articleImageCount: Number(form.articleImageCount), articleSize: form.articleSize,
   })
   const activePreset = PRESETS.find(p => p.baseUrl && p.baseUrl === form.baseUrl)?.id ?? (form.baseUrl ? 'custom' : null)
   return (
@@ -85,9 +85,20 @@ export function SettingsDialog() {
           <input type="password" autoComplete="off" value={form.apiKey} onChange={e => set('apiKey', e.target.value)} placeholder={settings.image.hasKey ? t('留空表示不修改') : 'sk-…'} />
           <small>{t('只保存在这台电脑上，不会写进内容数据，也不会被打包或发给模型。')}</small>
         </label>
-        <div className="md-field-row">
-          <label className="md-field"><span>{t('配图数量')}</span><input type="number" min="0" max="4" value={form.imageCount} onChange={e => set('imageCount', e.target.value)} /></label>
-          <label className="md-field"><span>{t('分镜格数')}</span><input type="number" min="0" max="12" value={form.shotCount} onChange={e => set('shotCount', e.target.value)} /></label>
+        <div className="md-form-section">
+          <h3>{t('视频成稿')}</h3>
+          <div className="md-field-row">
+            <label className="md-field"><span>{t('视频配图数量')}</span><input type="number" min="0" max="4" value={form.imageCount} onChange={e => set('imageCount', e.target.value)} /></label>
+            <label className="md-field"><span>{t('分镜格数')}</span><input type="number" min="0" max="12" value={form.shotCount} onChange={e => set('shotCount', e.target.value)} /></label>
+          </div>
+        </div>
+        <div className="md-form-section">
+          <h3>{t('图文成稿')}</h3>
+          <div className="md-field-row">
+            <label className="md-field"><span>{t('图文配图数量')}</span><input type="number" min="0" max="8" value={form.articleImageCount} onChange={e => set('articleImageCount', e.target.value)} /></label>
+            <label className="md-field"><span>{t('图文图片尺寸')}</span><input value={form.articleSize} onChange={e => set('articleSize', e.target.value)} placeholder={t('留空沿用通用尺寸')} /></label>
+          </div>
+          <small>{t('图文图片尺寸留空时，沿用下面「高级」里的通用尺寸。')}</small>
         </div>
         <button type="button" className="md-advanced" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><Icon name={advanced ? 'chevD' : 'chevR'} size={12} />{t('高级')}</button>
         {advanced ? (
