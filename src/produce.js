@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { articlePrompts, extractJson, fallbackArticle, fallbackPlan, planPrompts, shortCoverText } from './ai.js'
 import { tr } from './i18n.js'
-import { articleCardPrompt, coverPrompt, figurePrompt, shotPrompt } from './images.js'
+import { articleCardPrompt, articleCoverPrompt, coverPrompt, figurePrompt, shotPrompt } from './images.js'
 import { normalizeMode, productionOf, storeProduction } from './modes.js'
 import { newId } from './ops.js'
 import { imageReady } from './settings.js'
@@ -71,7 +71,9 @@ function assetAt(production, target) {
 
 function fullPrompt(production, target, asset) {
   const { kind } = parseTarget(target)
-  if (kind === 'cover') return coverPrompt(asset.prompt)
+  if (kind === 'cover') return production.mode === 'article'
+    ? articleCoverPrompt(production.coverText, production.title, asset.prompt)
+    : coverPrompt(asset.prompt)
   if (kind === 'image') return production.mode === 'article'
     ? articleCardPrompt(asset.title || asset.caption, asset.body || asset.caption, asset.prompt)
     : figurePrompt(asset.prompt)
@@ -412,6 +414,7 @@ export class Producer {
         if (!asset) return
         asset.status = 'done'
         asset.src = `media-desk/files/${name}`
+        if (mode === 'article' && target === 'cover') asset.textInImage = true
       })
     } catch (err) {
       if (signal?.aborted) return

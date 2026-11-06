@@ -121,10 +121,11 @@ function Poster({ production, item, mode = 'video', onOpen, onRetry }) {
   const src = production?.cover?.src ?? (!production && mode === 'video' ? item.media?.poster ?? (item.media?.src && item.kind !== 'video' ? item.media.src : null) : null)
   const text = production?.stage === 'brief' ? '' : production?.coverText || production?.title || ''
   const status = production?.cover?.status ?? 'idle'
+  const overlay = text && !(mode === 'article' && production?.cover?.textInImage)
   return (
     <div className={`md-poster ${src ? '' : 'is-type'}`} data-status={status} onClick={production?.cover?.src ? onOpen : undefined} role={production?.cover?.src ? 'button' : undefined}>
       {src ? <img key={src} src={src} alt={t('封面')} draggable={false} /> : null}
-      {text ? <b>{text}</b> : null}
+      {overlay ? <b>{text}</b> : null}
       {onRetry && ['failed', 'skipped'].includes(status) ? <button type="button" className="md-plate-failed" title={production?.cover?.error} onClick={(event) => { event.stopPropagation(); onRetry() }}><Icon name="refresh" size={12} />{status === 'failed' ? t('封面没画成，重画') : t('画封面')}</button> : null}
     </div>
   )
@@ -158,6 +159,16 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
     await saveProduced(item.id, mode)
     setSaving(false)
   }
+  const download = () => {
+    if (articleMode && production?.cover?.textInImage && production.cover?.src) {
+      const link = document.createElement('a')
+      link.href = production.cover.src
+      link.download = `${String(production.title || t('封面')).replace(/[\\/:*?"<>|\s]+/g, ' ').trim().slice(0, 40) || t('封面')}.png`
+      link.click()
+      return
+    }
+    downloadCover({ src: production.cover?.src, text: production.coverText || production.title }, production.title).catch(err => toast(err.message, { error: true }))
+  }
   const again = () => setDesk({
     dialog: {
       title: t('重新成稿'),
@@ -181,7 +192,7 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
           <div className="md-hero-actions">
             <button type="button" className="md-pill is-primary" onClick={copy}><Icon name="copy" size={14} />{articleMode ? t('复制小红书文案') : t('复制脚本')}</button>
             <button type="button" className="md-pill" onClick={save} disabled={saving}><Icon name="save" size={14} />{saving ? t('保存中…') : t('保存')}</button>
-            <button type="button" className="md-pill" onClick={() => downloadCover({ src: production.cover?.src, text: production.coverText || production.title }, production.title).catch(err => toast(err.message, { error: true }))}><Icon name="image" size={14} />{t('下载封面')}</button>
+            <button type="button" className="md-pill" onClick={download}><Icon name="image" size={14} />{t('下载封面')}</button>
             <label className="md-pill md-date-pill">
               <Icon name="calendar" size={14} />{item.scheduledAt ? fmtWhen(item.scheduledAt) : t('排期')}
               <input type="datetime-local" aria-label={t('排期')} value={toLocalInput(item.scheduledAt)} onClick={(event) => { try { event.currentTarget.showPicker() } catch { /* 不支持时用原生交互 */ } }} onChange={(event) => {
@@ -242,7 +253,7 @@ function ArticleBody({ production, text, onView }) {
   )
 }
 
-function ArticleTile({ item, live, production, mode = 'video', open, onToggle, onView, tileRef }) {
+function ArticleTile({ item, live, production, mode = 'video', open, onToggle, onView, onPlan, tileRef }) {
   const articleMode = mode === 'article'
   const running = production?.status === 'running'
   const scroller = React.useRef(null)
@@ -288,6 +299,7 @@ function ArticleTile({ item, live, production, mode = 'video', open, onToggle, o
         <span className="md-grow" />
         {article ? (
           <>
+            {onPlan ? <IconButton icon="list" label={t('查看策划案')} onClick={onPlan} /> : null}
             {editing ? <button type="button" className="md-btn is-small" onClick={save}><Icon name="check" size={13} />{t('完成')}</button> : <IconButton icon="edit" label={t('直接修改')} onClick={() => setEditing(true)} />}
             <IconButton icon="copy" label={articleMode ? t('复制小红书文案') : t('复制脚本')} onClick={copy} />
             <IconButton icon={open ? 'close' : 'expand'} label={open ? t('收起') : t('放大阅读')} onClick={onToggle} />
@@ -400,6 +412,23 @@ function Viewer({ item, production, mode = 'video', target, onChange, onClose })
   const index = Math.max(0, list.findIndex(row => row.target === target))
   const current = list[index]
   const ref = React.useRef(null)
+  const swipe = React.useRef(null)
+  const prevTarget = list[index - 1]?.target
+  const nextTarget = list[index + 1]?.target
+  const onPointerDown = (event) => {
+    if (event.target.closest?.('button')) return
+    swipe.current = { x: event.clientX, y: event.clientY }
+  }
+  const onPointerUp = (event) => {
+    const start = swipe.current
+    swipe.current = null
+    if (!start) return
+    const dx = event.clientX - start.x
+    const dy = event.clientY - start.y
+    if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy)) return
+    if (dx > 0 && prevTarget) onChange(prevTarget)
+    else if (dx < 0 && nextTarget) onChange(nextTarget)
+  }
   React.useEffect(() => {
     const onKey = (event) => {
       if (event.key === 'Escape') {
@@ -420,14 +449,16 @@ function Viewer({ item, production, mode = 'video', target, onChange, onClose })
   return (
     <div className="md-viewer" role="dialog" aria-label={current.label} onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div className="md-viewer-card" ref={ref}>
-        <div className={`md-viewer-image ${current.paper ? 'is-paper' : ''}`}>
+        <div className={`md-viewer-image ${current.paper ? 'is-paper' : ''}`} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { swipe.current = null }}>
           {current.asset.src ? <img key={current.asset.src} src={current.asset.src} alt={current.label} /> : null}
           {isBusy(current.asset) ? <span className="md-viewer-busy"><span className="md-shimmer">{t('正在重画…')}</span></span> : null}
+          <IconButton className="md-viewer-nav is-prev" icon="chevL" label={t('上一张')} disabled={!prevTarget} onClick={() => prevTarget && onChange(prevTarget)} />
+          <IconButton className="md-viewer-nav is-next" icon="chevR" label={t('下一张')} disabled={!nextTarget} onClick={() => nextTarget && onChange(nextTarget)} />
         </div>
         <footer>
           <div className="md-viewer-text"><b>{current.label}</b>{current.note ? <span>{current.note}</span> : null}</div>
-          <IconButton icon="chevL" label={t('上一张')} disabled={!list[index - 1]} onClick={() => list[index - 1] && onChange(list[index - 1].target)} />
-          <IconButton icon="chevR" label={t('下一张')} disabled={!list[index + 1]} onClick={() => list[index + 1] && onChange(list[index + 1].target)} />
+          <IconButton icon="chevL" label={t('上一张')} disabled={!prevTarget} onClick={() => prevTarget && onChange(prevTarget)} />
+          <IconButton icon="chevR" label={t('下一张')} disabled={!nextTarget} onClick={() => nextTarget && onChange(nextTarget)} />
           <button type="button" className="md-pill" onClick={() => { askAbout(current.label); onClose() }}><Icon name="chat" size={13} />{t('让助手改')}</button>
           {imageReady ? <button type="button" className="md-pill" disabled={isBusy(current.asset)} onClick={() => regenAsset(item.id, current.target, mode)}><Icon name="refresh" size={13} />{t('重画')}</button> : null}
           {current.asset.src ? <a className="md-pill" href={current.asset.src} download><Icon name="save" size={13} />{t('下载')}</a> : null}
@@ -439,7 +470,7 @@ function Viewer({ item, production, mode = 'video', target, onChange, onClose })
 }
 
 /** 小红书图文策划案：先确认每张卡片的标题和正文，再逐张生成图片。 */
-function PlanEditor({ item, production, mode }) {
+function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
   const [draft, setDraft] = React.useState(() => ({
     title: production?.title ?? '',
     coverText: production?.coverText ?? '',
@@ -468,13 +499,17 @@ function PlanEditor({ item, production, mode }) {
       <header className="md-plan-head">
         <div>
           <h2>{t('小红书图文策划案')}</h2>
-          <p>{t('先确认标题和每张卡片的文字，再开始生成；图片会一张一张生成。')}</p>
+          <p>{readOnly ? t('已成稿：策划案仅供查看。') : t('先确认标题和每张卡片的文字，再开始生成；图片会一张一张生成。')}</p>
         </div>
         <span className="md-plan-count">{t('{n} 张', { n: draft.images.length, s: plural(draft.images.length, '', 's') })}</span>
       </header>
       <div className="md-plan-copy">
-        <label className="md-field"><span>{t('笔记标题')}</span><input value={draft.title} onChange={e => setDraft(current => ({ ...current, title: e.target.value }))} maxLength={40} /></label>
-        <label className="md-field"><span>{t('封面大字')}</span><input value={draft.coverText} onChange={e => setDraft(current => ({ ...current, coverText: e.target.value }))} maxLength={20} /></label>
+        <label className="md-field"><span>{t('笔记标题')}</span><input value={draft.title} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, title: e.target.value }))} maxLength={40} /></label>
+        <label className="md-field"><span>{t('封面大字')}</span><input value={draft.coverText} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, coverText: e.target.value }))} maxLength={20} /></label>
+      </div>
+      <div className="md-plan-cover">
+        <span className="md-plan-cover-badge">{t('封面')}</span>
+        <b>{draft.coverText || t('封面大字')}</b>
       </div>
       <div className="md-plan-cards">
         {draft.images.map((image, index) => (
@@ -482,20 +517,28 @@ function PlanEditor({ item, production, mode }) {
             <span className="md-plan-no">{String(index + 1).padStart(2, '0')}</span>
             <label className="md-field">
               <span>{t('卡片标题')}</span>
-              <input value={image.title} onChange={e => setImage(index, 'title', e.target.value)} maxLength={30} placeholder={t('这一张的标题')} />
+              <input value={image.title} disabled={readOnly} onChange={e => setImage(index, 'title', e.target.value)} maxLength={30} placeholder={t('这一张的标题')} />
             </label>
             <label className="md-field">
               <span>{t('卡片正文')}</span>
-              <textarea rows={3} value={image.body} onChange={e => setImage(index, 'body', e.target.value)} maxLength={200} placeholder={t('这一张要讲的正文')} />
+              <textarea rows={3} value={image.body} disabled={readOnly} onChange={e => setImage(index, 'body', e.target.value)} maxLength={200} placeholder={t('这一张要讲的正文')} />
             </label>
-            {production?.images?.[index]?.prompt ? <small className="md-plan-prompt">{production.images[index].prompt}</small> : null}
           </article>
         ))}
       </div>
       <footer className="md-plan-foot">
-        <button type="button" className="md-btn" disabled={saving} onClick={() => runProduce(item.id, mode, { planOnly: true })}>{t('重新策划')}</button>
-        <span style={{ flex: 1 }} />
-        <button type="button" className="md-btn is-primary" disabled={saving} onClick={confirm}>{saving ? <span className="md-shimmer">{t('正在准备…')}</span> : t('确认，开始逐张生成')}</button>
+        {readOnly ? (
+          <>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="md-btn" onClick={onClose}>{t('关闭策划案')}</button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="md-btn" disabled={saving} onClick={() => runProduce(item.id, mode, { planOnly: true })}>{t('重新策划')}</button>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="md-btn is-primary" disabled={saving} onClick={confirm}>{saving ? <span className="md-shimmer">{t('正在准备…')}</span> : t('确认，开始逐张生成')}</button>
+          </>
+        )}
       </footer>
     </div>
   )
@@ -505,6 +548,7 @@ function Sheet({ item, live, mode, onModeChange, production }) {
   const settings = useDesk(s => s.settings)
   const [open, setOpen] = React.useState(null)
   const [viewing, setViewing] = React.useState(null)
+  const [planOpen, setPlanOpen] = React.useState(false)
   const bento = React.useRef(null)
   const tiles = React.useRef({})
   const articleRef = React.useRef(null)
@@ -513,6 +557,7 @@ function Sheet({ item, live, mode, onModeChange, production }) {
   React.useEffect(() => {
     setOpen(null)
     setViewing(null)
+    setPlanOpen(false)
   }, [mode])
 
   const expand = (name) => {
@@ -567,15 +612,16 @@ function Sheet({ item, live, mode, onModeChange, production }) {
   })
   const planned = mode === 'article' && production?.status === 'planned'
   const planning = mode === 'article' && production?.status === 'running' && production?.stage === 'plan'
-  const content = planned ? (
-    <PlanEditor item={item} production={production} mode={mode} />
+  const showPlan = planned || (mode === 'article' && planOpen)
+  const content = showPlan ? (
+    <PlanEditor item={item} production={production} mode={mode} readOnly={!planned} onClose={() => setPlanOpen(false)} />
   ) : planning ? (
     <div className="md-plan-loading"><span className="md-shimmer">{t('正在生成小红书策划案…')}</span></div>
   ) : (
     <div className={`md-bento ${open ? 'has-open' : ''}`} ref={bento}>
       <HeroTile item={item} live={live} production={production} mode={mode} onView={setViewing} />
       <section {...tile('article')}>
-        <ArticleTile item={item} live={live} production={production} mode={mode} open={open === 'article'} onToggle={() => toggle('article')} onView={setViewing} tileRef={articleRef} />
+        <ArticleTile item={item} live={live} production={production} mode={mode} open={open === 'article'} onToggle={() => toggle('article')} onView={setViewing} onPlan={mode === 'article' && production?.images?.length ? () => setPlanOpen(true) : undefined} tileRef={articleRef} />
       </section>
       {mode === 'video' ? (
         <section {...tile('shots')}>

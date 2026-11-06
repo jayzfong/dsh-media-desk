@@ -93,6 +93,7 @@ const COVER_STYLE = 'Editorial cover image, striking composition with calm negat
 const FIGURE_STYLE = 'Editorial article illustration, refined and consistent with a modern magazine, no text, no letters, no logo.'
 const SHOT_STYLE = 'Film storyboard panel, black and white pencil line art sketch, loose confident lines, no color, plain white paper background, no text, no letters, no captions, no panel numbers.'
 const CARD_STYLE = 'Xiaohongshu knowledge card, 3:4 vertical portrait, off-white paper background, clean hand-drawn infographic / light tech explainer style, black Chinese headings, orange and blue-purple accent strokes, simple line icons, arrows and sticky-note boxes, generous whitespace, clear visual hierarchy, no dark cyberpunk screen, no 3D render, no photo.'
+const COVER_CARD_STYLE = 'Xiaohongshu note cover, 3:4 vertical portrait, off-white paper background, clean hand-drawn infographic / light tech explainer style, strong black Chinese headline typography, orange and blue-purple accent marks, simple line illustration, generous negative space, clear visual hierarchy, no dark cyberpunk screen, no 3D render, no photo.'
 
 /**
  * 小红书图文的单张图片卡片：文字由生图模型直接排进画面。
@@ -104,6 +105,18 @@ const CARD_STYLE = 'Xiaohongshu knowledge card, 3:4 vertical portrait, off-white
 export function articleCardPrompt(title, body, prompt) {
   const copy = [title && `标题：${title}`, body && `正文：${body}`].filter(Boolean).join('\n')
   return `${CARD_STYLE} Render the following Simplified Chinese text exactly as written, legible and typographically clean, with no spelling changes, no extra words and no placeholders:\n${copy}\nVisual concept: ${prompt}\nDo not add page numbers, numbering, watermarks, logos, or extra headings. Keep the Chinese text inside the card.`
+}
+
+/**
+ * 小红书图文封面：封面大字也由生图模型直接排进画面。
+ * @param {string} text - 封面大字。
+ * @param {string} title - 笔记标题（作为辅助信息）。
+ * @param {string} prompt - 画面描述。
+ * @returns {string} 生图提示词。
+ */
+export function articleCoverPrompt(text, title, prompt) {
+  const copy = text ? `封面大字：${text}` : title ? `笔记标题：${title}` : ''
+  return `${COVER_CARD_STYLE} Render the following Simplified Chinese cover text exactly as written, large and legible, with no spelling changes and no extra words:\n${copy}\nVisual concept: ${prompt}\nDo not add page numbers, numbering, watermarks, logos, or extra copy.`
 }
 
 export function coverPrompt(prompt) {
