@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { articlePrompts, extractJson, fallbackArticle, fallbackPlan, planPrompts, shortCoverText } from './ai.js'
 import { tr } from './i18n.js'
 import { coverPrompt, figurePrompt, shotPrompt } from './images.js'
+import { normalizeMode, productionOf, storeProduction } from './modes.js'
 import { newId } from './ops.js'
 import { imageReady } from './settings.js'
 
@@ -20,10 +21,11 @@ function splitTitle(markdown, fallback) {
 }
 
 /** 模型给的规划不可信：只取需要的字段，数量按设置截断。 */
-export function normalizePlan(plan, settings, title) {
+export function normalizePlan(plan, settings, title, mode = 'video') {
   const text = (value, max = 400) => (typeof value === 'string' ? value.trim().slice(0, max) : '')
+  const articleMode = normalizeMode(mode) === 'article'
   const images = (Array.isArray(plan?.images) ? plan.images : []).slice(0, settings.imageCount).map(row => ({ caption: text(row?.caption, 60), anchor: text(row?.anchor, 60), prompt: text(row?.prompt, 1200) })).filter(row => row.prompt)
-  const shots = (Array.isArray(plan?.shots) ? plan.shots : []).slice(0, settings.shotCount).map((row, index) => ({
+  const shots = articleMode ? [] : (Array.isArray(plan?.shots) ? plan.shots : []).slice(0, settings.shotCount).map((row, index) => ({
     no: index + 1, shot: text(row?.shot, 12) || tr('中景'), visual: text(row?.visual, 200), voice: text(row?.voice, 200),
     seconds: Number.isFinite(row?.seconds) ? Math.max(1, Math.min(60, Math.round(row.seconds))) : 5, prompt: text(row?.prompt, 1200),
   })).filter(row => row.prompt || row.visual)
@@ -158,6 +160,7 @@ export class Producer {
     const plan = job.planText
     return {
       running: true,
+      mode: job.mode,
       stage: job.stage,
       text: job.text,
       title: /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(plan)?.[1],
@@ -165,24 +168,26 @@ export class Producer {
     }
   }
 
-  patch(id, mutate) {
+  patch(id, mode, mutate) {
     return this.store.mutate('成稿', (state) => {
       const item = state.items.find(row => row.id === id)
-      if (item?.production) mutate(item.production, item)
+      const production = productionOf(item, mode)
+      if (production) mutate(production, item)
       return state
     }, { undoable: false })
   }
 
-  async start(id) {
+  async start(id, mode = 'video') {
     if (this.jobs.has(id)) return false
     const state = await this.store.read()
     const item = state.items.find(row => row.id === id)
     if (!item) throw Object.assign(new Error(tr('找不到这条灵感')), { status: 404 })
-    const job = { stage: 'brief', text: '', planText: '', controller: new AbortController() }
+    const resolvedMode = normalizeMode(mode)
+    const job = { mode: resolvedMode, stage: 'brief', text: '', planText: '', controller: new AbortController() }
     this.jobs.set(id, job)
     await this.store.mutate('开始成稿', (draft) => {
       const target = draft.items.find(row => row.id === id)
-      target.production = { status: 'running', stage: 'brief', startedAt: new Date().toISOString(), title: target.title, article: '', cover: null, images: [], shots: [] }
+      storeProduction(target, resolvedMode, { status: 'running', mode: resolvedMode, stage: 'brief', startedAt: new Date().toISOString(), title: target.title, article: '', cover: null, images: [], shots: [] })
       return draft
     }, { undoable: false })
     // 不等待：浏览器靠轮询拿进度
@@ -196,6 +201,7 @@ export class Producer {
 
   async run(id, job) {
     const { signal } = job.controller
+    const mode = job.mode
     try {
       const settings = await this.settings.read()
       const state = await this.store.read()
@@ -203,25 +209,26 @@ export class Producer {
       const snapshot = JSON.parse(JSON.stringify(state))
 
       signal.throwIfAborted()
-      const backup = normalizePlan(fallbackPlan(item, '', settings), settings, item.title)
+      const backup = normalizePlan(fallbackPlan(item, '', settings, mode), settings, item.title, mode)
 
       let plan
       try {
-        const prompts = planPrompts(snapshot, item, settings)
+        const prompts = planPrompts(snapshot, item, settings, mode)
         const { text } = await this.callText({ ...prompts, maxTokens: 3000, light: true, signal: AbortSignal.any([signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]), onText: (delta) => { job.planText += delta } })
-        plan = normalizePlan(extractJson(text), settings, item.title)
+        plan = normalizePlan(extractJson(text), settings, item.title, mode)
       } catch (err) {
         if (signal.aborted) throw err
         plan = backup
       }
       // 模型漏掉配图或分镜时用模板补上，流水线不能因此少一块
       if (plan.images.length < settings.imageCount) plan.images = [...plan.images, ...backup.images.slice(plan.images.length)]
-      if (plan.shots.length < settings.shotCount) plan.shots = [...plan.shots, ...backup.shots.slice(plan.shots.length).map((row, i) => ({ ...row, no: plan.shots.length + i + 1 }))]
+      if (mode === 'video' && plan.shots.length < settings.shotCount) plan.shots = [...plan.shots, ...backup.shots.slice(plan.shots.length).map((row, i) => ({ ...row, no: plan.shots.length + i + 1 }))]
 
       const ready = imageReady(settings)
       const initial = ready ? 'pending' : 'skipped'
       job.stage = 'making'
-      await this.patch(id, (production) => {
+      await this.patch(id, mode, (production) => {
+        production.mode = mode
         production.stage = 'making'
         production.title = plan.title
         production.coverText = plan.coverText
@@ -240,19 +247,19 @@ export class Producer {
         let notice = null
         let markdown = ''
         try {
-          const prompts = articlePrompts(snapshot, item, settings.voice, plan)
+          const prompts = articlePrompts(snapshot, item, settings.voice, plan, mode)
           const result = await this.callText({ ...prompts, maxTokens: 6000, signal: AbortSignal.any([signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]), onText: (delta) => { job.text += delta } })
           markdown = result.text
           engine = result.model
           if (!markdown.trim()) throw new Error(tr('模型返回了空内容'))
         } catch (err) {
           if (signal.aborted) throw err
-          markdown = fallbackArticle(snapshot, item)
+          markdown = fallbackArticle(snapshot, item, mode)
           job.text = markdown
           notice = tr('没有连上文字模型，先给你一份结构草稿。可以到 DeepSeek Harness 设置里检查模型。')
         }
         const { article } = splitTitle(markdown, plan.title)
-        await this.patch(id, (production) => {
+        await this.patch(id, mode, (production) => {
           production.article = article
           production.aiArticle = article
           production.engine = engine
@@ -262,13 +269,13 @@ export class Producer {
 
       const tasks = [writeArticle()]
       if (ready) {
-        const targets = ['cover', ...plan.images.map((_, i) => `image:${i}`), ...plan.shots.map((_, i) => `shot:${i}`)]
+        const targets = ['cover', ...plan.images.map((_, i) => `image:${i}`), ...(mode === 'video' ? plan.shots.map((_, i) => `shot:${i}`) : [])]
         let next = 0
         const worker = async () => {
           while (next < targets.length && !signal.aborted) {
             const target = targets[next]
             next += 1
-            await this.renderAsset(id, target, settings, signal)
+            await this.renderAsset(id, mode, target, settings, signal)
           }
         }
         for (let i = 0; i < CONCURRENCY; i += 1) tasks.push(worker())
@@ -278,16 +285,17 @@ export class Producer {
 
       await this.store.mutate('完成成稿', (draft) => {
         const target = draft.items.find(row => row.id === id)
-        if (!target?.production) return draft
-        target.production.status = 'done'
-        target.production.stage = 'done'
-        target.production.finishedAt = new Date().toISOString()
+        const production = productionOf(target, mode)
+        if (!production) return draft
+        production.status = 'done'
+        production.stage = 'done'
+        production.finishedAt = new Date().toISOString()
         if (['idea', 'outline'].includes(target.status)) target.status = target.scheduledAt ? 'ready' : 'draft'
         return draft
       }, { undoable: false })
     } catch (err) {
       const cancelled = signal.aborted
-      await this.patch(id, (production) => {
+      await this.patch(id, mode, (production) => {
         production.status = cancelled ? 'cancelled' : 'failed'
         production.stage = 'done'
         production.error = cancelled ? null : err.message
@@ -314,9 +322,9 @@ export class Producer {
     }
   }
 
-  async renderAsset(id, target, settings, signal) {
+  async renderAsset(id, mode, target, settings, signal) {
     let prompt = null
-    await this.patch(id, (production) => {
+    await this.patch(id, mode, (production) => {
       const asset = assetAt(production, target)
       if (!asset) return
       asset.status = 'running'
@@ -328,7 +336,7 @@ export class Producer {
       const { buffer, ext } = await this.generateWithRetry(settings.image, prompt, signal)
       const name = `${newId('g')}${ext}`
       await writeFile(join(this.store.filesDir, name), buffer)
-      await this.patch(id, (production) => {
+      await this.patch(id, mode, (production) => {
         const asset = assetAt(production, target)
         if (!asset) return
         asset.status = 'done'
@@ -336,7 +344,7 @@ export class Producer {
       })
     } catch (err) {
       if (signal?.aborted) return
-      await this.patch(id, (production) => {
+      await this.patch(id, mode, (production) => {
         const asset = assetAt(production, target)
         if (!asset) return
         asset.status = 'failed'
@@ -346,34 +354,39 @@ export class Producer {
   }
 
   /** 单独重画一张。 */
-  async regenerate(id, target) {
+  async regenerate(id, target, mode = 'video') {
+    const resolvedMode = normalizeMode(mode)
     const settings = await this.settings.read()
     if (!imageReady(settings)) throw Object.assign(new Error(tr('还没有接入生图模型')), { status: 400 })
     if (!parseTarget(target)) throw Object.assign(new Error(tr('目标无效')), { status: 400 })
-    const key = `${id}:${target}`
+    const key = `${id}:${resolvedMode}:${target}`
     if (this.assets.has(key)) return
     const state = await this.store.read()
-    const production = state.items.find(row => row.id === id)?.production
+    const item = state.items.find(row => row.id === id)
+    const production = productionOf(item, resolvedMode)
     if (!production || !assetAt(production, target)) throw Object.assign(new Error(tr('找不到这张图')), { status: 404 })
     this.assets.add(key)
-    await this.patch(id, (next) => { assetAt(next, target).status = 'running' })
-    this.renderAsset(id, target, settings).catch(() => {}).finally(() => this.assets.delete(key))
+    await this.patch(id, resolvedMode, (next) => { assetAt(next, target).status = 'running' })
+    this.renderAsset(id, resolvedMode, target, settings).catch(() => {}).finally(() => this.assets.delete(key))
   }
 
   /** Host 重启后，没人在跑的「进行中」不能一直转圈。 */
   /** Host 重启后，把上次没做完的成稿都标成中断，卡片不会一直显示「正在成稿」。 */
   async settleAll() {
     const state = await this.store.read()
-    for (const item of state.items) if (item.production?.status === 'running') await this.settle(item.id)
+    for (const item of state.items) {
+      const modes = item.productions ? Object.keys(item.productions) : [normalizeMode(item.production?.mode)]
+      for (const mode of modes) if (productionOf(item, mode)?.status === 'running') await this.settle(item.id, mode)
+    }
   }
 
-  async settle(id) {
+  async settle(id, mode = 'video') {
     const state = await this.store.read()
-    const production = state.items.find(row => row.id === id)?.production
+    const production = productionOf(state.items.find(row => row.id === id), mode)
     if (!production || this.jobs.has(id)) return
     const stuck = !this.anyAssetActive(id) && [production.cover, ...production.images ?? [], ...production.shots ?? []].some(asset => asset?.status === 'running')
     if (production.status !== 'running' && !stuck) return
-    await this.patch(id, (next) => {
+    await this.patch(id, mode, (next) => {
       if (next.status === 'running') {
         next.status = 'failed'
         next.stage = 'done'

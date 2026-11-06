@@ -11,6 +11,7 @@ import { generateImage } from './images.js'
 import { localIntent } from './intents.js'
 import { computeInsights, exportSkill, proposeRules } from './learn.js'
 import { createMonidRunner, fetchAccount, importPosts, monidStatus, postsToMaterial, resolveAccount, saveCovers } from './monid.js'
+import { normalizeMode, productionOf } from './modes.js'
 import { applyOps, newId } from './ops.js'
 import { applyRevision, Producer } from './produce.js'
 import { publicSettings, Settings, imageReady } from './settings.js'
@@ -102,6 +103,7 @@ async function chatTurn(ctx, store, desk, body) {
   const message = String(body.message || '').trim()
   if (!message) throw Object.assign(new Error(tr('消息为空')), { status: 400 })
   const focusId = typeof body.focusId === 'string' ? body.focusId : undefined
+  const mode = normalizeMode(body.mode)
   const state = await store.read()
   const snapshot = JSON.parse(JSON.stringify(state))
   let plan
@@ -110,8 +112,8 @@ async function chatTurn(ctx, store, desk, body) {
   const wasDown = modelStatus.ok === false
   try {
     const history = snapshot.chat.filter(row => (row.itemId ?? null) === (focusId ?? null))
-    const { system, user } = chatPrompts(snapshot, message, { focusId, history })
-    const editing = snapshot.items.find(row => row.id === focusId)?.production?.status === 'done'
+    const { system, user } = chatPrompts(snapshot, message, { focusId, history, mode })
+    const editing = productionOf(snapshot.items.find(row => row.id === focusId), mode)?.status === 'done'
     const { text, model } = await callModel(ctx, { system, user, maxTokens: editing ? 8000 : 2000, light: true, signal: AbortSignal.timeout(editing ? 240_000 : 90_000) })
     engine = model
     try {
@@ -130,10 +132,10 @@ async function chatTurn(ctx, store, desk, body) {
   // 只把真正改了数据的那一步放进撤销；问一句话不占撤销位
   const changed = await store.mutate(tr('对话：{text}', { text: message.slice(0, 18) }), (draft) => {
     const target = focusId ? draft.items.find(row => row.id === focusId) : null
-    const production = target?.production?.status === 'done' ? target.production : null
+    const production = productionOf(target, mode)?.status === 'done' ? productionOf(target, mode) : null
     // 本地规则只会改灵感标题；有成稿时要改的是成稿标题
     const ops = (Array.isArray(plan.ops) ? plan.ops : []).map((op) => {
-      if (production && op?.op === 'update_item' && op.id === focusId && typeof op.title === 'string') return { op: 'update_production', id: focusId, title: op.title }
+      if (production && op?.op === 'update_item' && op.id === focusId && typeof op.title === 'string') return { op: 'update_production', id: focusId, title: op.title, mode }
       return op
     })
     const { receipts, errors } = applyOps(draft, ops)
@@ -154,7 +156,7 @@ async function chatTurn(ctx, store, desk, body) {
     // 已经做好的成稿不会因为一句话被整篇重做，要重做请点「重新成稿」
     const actions = (Array.isArray(plan.actions) ? plan.actions : [])
       .filter(a => a && ['produce', 'open', 'nav'].includes(a.type))
-      .filter(a => !(a.type === 'produce' && (done && a.id === focusId || draft.items.find(row => row.id === a.id)?.production?.status === 'done')))
+      .filter(a => !(a.type === 'produce' && (done && a.id === focusId || productionOf(draft.items.find(row => row.id === a.id), mode)?.status === 'done')))
     draft.chat.push({ id: newId('c'), at, role: 'user', text: message, itemId })
     const answer = { id: newId('c'), at, role: 'assistant', text: plan.reply, receipts, errors, engine, notice, undoable: receipts.length > 0, itemId }
     draft.chat.push(answer)
@@ -162,7 +164,7 @@ async function chatTurn(ctx, store, desk, body) {
     return { answer, actions, targets, state: draft, modelOk: modelStatus.ok, modelError: modelStatus.error }
   }, { undoable: false })
   if (canDraw) {
-    await Promise.all(result.targets.map(target => desk.producer.regenerate(focusId, target).catch(() => {})))
+    await Promise.all(result.targets.map(target => desk.producer.regenerate(focusId, target, mode).catch(() => {})))
     return { ...result, state: await store.read() }
   }
   return result
@@ -304,10 +306,11 @@ async function route(ctx, store, desk, req, res) {
     }
     if (path === 'production') {
       const id = url.searchParams.get('id') ?? ''
-      await desk.producer.settle(id)
+      const mode = normalizeMode(url.searchParams.get('mode'))
+      await desk.producer.settle(id, mode)
       const state = await store.read()
       const item = state.items.find(row => row.id === id)
-      return json(res, 200, { production: item?.production ?? null, status: item?.status, live: desk.producer.status(id) })
+      return json(res, 200, { production: productionOf(item, mode), status: item?.status, live: desk.producer.status(id) })
     }
     if (path === 'settings') return json(res, 200, { ...publicSettings(await desk.settings.read()), defaultExportDir: defaultExportDir() })
     if (path === 'insights') return json(res, 200, computeInsights(await store.read()))
@@ -341,31 +344,34 @@ async function route(ctx, store, desk, req, res) {
       return json(res, 200, { state })
     }
     case 'produce': {
-      const started = await desk.producer.start(String(body.id))
+      const started = await desk.producer.start(String(body.id), normalizeMode(body.mode))
       return json(res, 200, { started, state: await store.read() })
     }
     case 'produce/cancel':
       await desk.producer.cancel(String(body.id))
       return json(res, 200, { ok: true })
     case 'produce/regen':
-      await desk.producer.regenerate(String(body.id), body.target)
+      await desk.producer.regenerate(String(body.id), body.target, normalizeMode(body.mode))
       return json(res, 200, { state: await store.read() })
     case 'produce/save': {
+      const mode = normalizeMode(body.mode)
       const settings = await desk.settings.read()
       const state = await store.read()
       const item = state.items.find(row => row.id === body.id)
-      if (!item?.production?.article) return json(res, 400, { error: tr('还没有可以保存的成稿') })
+      const production = productionOf(item, mode)
+      if (!production?.article) return json(res, 400, { error: tr('还没有可以保存的成稿') })
       await store.read()
-      // 视频封面由浏览器合成（画面叠大字），这里只接受 JPEG
-      const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(body.videoCover ?? '')
+      // 视频封面由浏览器合成（画面叠大字），图文模式不需要
+      const match = mode === 'video' ? /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(body.videoCover ?? '') : null
       const videoCover = match ? Buffer.from(match[1], 'base64') : null
       if (videoCover && !(videoCover[0] === 0xff && videoCover[1] === 0xd8)) return json(res, 400, { error: tr('封面不是有效的图片') })
-      const saved = await saveProduction(item.production, { filesDir: store.filesDir, exportDir: resolveExportDir(settings.exportDir), videoCover })
+      const saved = await saveProduction(production, { filesDir: store.filesDir, exportDir: resolveExportDir(settings.exportDir), videoCover, mode })
       const next = await store.mutate('保存成稿', (draft) => {
         const target = draft.items.find(row => row.id === body.id)
-        if (target?.production) {
-          target.production.savedPath = saved.path
-          target.production.savedAt = new Date().toISOString()
+        const current = productionOf(target, mode)
+        if (current) {
+          current.savedPath = saved.path
+          current.savedAt = new Date().toISOString()
         }
         return draft
       }, { undoable: false })
@@ -373,8 +379,9 @@ async function route(ctx, store, desk, req, res) {
     }
     case 'produce/reveal': {
       // 路径只取自保存记录，不接受请求里传来的路径
+      const mode = normalizeMode(body.mode)
       const state = await store.read()
-      const path = state.items.find(row => row.id === body.id)?.production?.savedPath
+      const path = productionOf(state.items.find(row => row.id === body.id), mode)?.savedPath
       if (!path) return json(res, 400, { error: tr('还没有保存过') })
       const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open'
       execFile(command, [path], () => {})

@@ -32,13 +32,14 @@ function cell(text) {
  * @param {{filesDir: string, exportDir: string, videoCover?: Buffer}} options - 素材目录、保存位置和合成好的视频封面。
  * @returns {Promise<{path: string, files: string[]}>} 文件夹路径和写入的文件名。
  */
-export async function saveProduction(production, { filesDir, exportDir, videoCover }) {
+export async function saveProduction(production, { filesDir, exportDir, videoCover, mode = 'video' }) {
   // 英文界面用纯 ASCII 文件名，方便在别的系统和工具里打开
   const en = currentLang() === 'en'
+  const articleMode = mode === 'article'
   const names = en
-    ? { cover: 'cover-original', videoCover: 'video-cover.jpg', figure: i => `figure-${i}`, shot: n => `shot-${n}`, script: 'script.md', board: 'storyboard.md' }
-    : { cover: '封面原图', videoCover: '视频封面.jpg', figure: i => `配图${i}`, shot: n => `分镜${n}`, script: '脚本.md', board: '分镜脚本.md' }
-  const target = production.savedPath || join(exportDir, folderName(production.title))
+    ? { cover: 'cover-original', videoCover: 'video-cover.jpg', figure: i => `figure-${i}`, shot: n => `shot-${n}`, script: articleMode ? 'article.md' : 'script.md', board: 'storyboard.md' }
+    : { cover: '封面原图', videoCover: '视频封面.jpg', figure: i => `配图${i}`, shot: n => `分镜${n}`, script: articleMode ? '图文.md' : '脚本.md', board: '分镜脚本.md' }
+  const target = production.savedPath || join(exportDir, `${folderName(production.title)}${articleMode && !en ? '（图文）' : articleMode ? ' (article)' : ''}`)
   await mkdir(target, { recursive: true })
   const files = []
 

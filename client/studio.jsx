@@ -4,8 +4,8 @@ import { ChatPanel } from './chat.jsx'
 import { downloadCover } from './cover.js'
 import { cancelProduce, closeItem, dispatchOps, regenAsset, revealSaved, runProduce, saveProduced, setDesk, toast, useDesk, watchProduction } from './desk.js'
 import { plural, t } from './i18n.js'
-import { Icon, IconButton } from './ui.jsx'
-import { SPRING_SNAP, SPRING_SOFT, STYLE_CATEGORIES, fmtDate, fmtWhen, reducedMotion, renderMarkdown, styleIcon, textLength, toLocalInput } from './util.js'
+import { Icon, IconButton, Segmented } from './ui.jsx'
+import { SPRING_SNAP, SPRING_SOFT, STYLE_CATEGORIES, fmtDate, fmtWhen, productionOf, reducedMotion, renderMarkdown, styleIcon, textLength, toLocalInput } from './util.js'
 
 const isBusy = asset => ['pending', 'running'].includes(asset?.status)
 
@@ -52,7 +52,8 @@ function Plate({ asset, paper = false, mark = null, alt = '', onOpen, onRetry })
 }
 
 /** 进度：放在对话栏里，像助手在汇报。 */
-function ProgressCard({ production, live, settings }) {
+function ProgressCard({ production, live, settings, mode = 'video' }) {
+  const articleMode = mode === 'article'
   const running = production.status === 'running'
   const ready = settings?.imageReady
   const words = textLength(production.article || live?.text || '')
@@ -60,12 +61,17 @@ function ProgressCard({ production, live, settings }) {
   const shots = production.shots ?? []
   const count = list => list.filter(a => a.src).length
   const planned = production.stage !== 'brief'
+  const scriptLabel = production.article
+    ? (articleMode ? t('正文 {n} 字', { n: words, s: plural(words, '', 's') }) : t('脚本 {n} 字', { n: words, s: plural(words, '', 's') }))
+    : words
+      ? (articleMode ? t('正在写 {n} 字', { n: words, s: plural(words, '', 's') }) : t('正在写 {n} 字', { n: words, s: plural(words, '', 's') }))
+      : (articleMode ? t('正文') : t('脚本'))
   const steps = [
     { label: t('标题和封面字'), done: planned, active: !planned },
-    { label: production.article ? t('脚本 {n} 字', { n: words, s: plural(words, '', 's') }) : words ? t('正在写 {n} 字', { n: words, s: plural(words, '', 's') }) : t('脚本'), done: Boolean(production.article), active: planned && !production.article },
+    { label: scriptLabel, done: Boolean(production.article), active: planned && !production.article },
     ...(ready ? [
       { label: t('封面和配图 {done}/{total}', { done: count(visuals), total: visuals.length || 1 + (settings?.imageCount ?? 2) }), done: planned && visuals.length > 0 && !visuals.some(isBusy), active: visuals.some(isBusy) },
-      { label: t('分镜 {done}/{total}', { done: count(shots), total: shots.length || settings?.shotCount || 6 }), done: planned && shots.length > 0 && !shots.some(isBusy), active: shots.some(isBusy) },
+      ...(articleMode ? [] : [{ label: t('分镜 {done}/{total}', { done: count(shots), total: shots.length || settings?.shotCount || 6 }), done: planned && shots.length > 0 && !shots.some(isBusy), active: shots.some(isBusy) }]),
     ] : []),
   ]
   return (
@@ -82,9 +88,9 @@ function ProgressCard({ production, live, settings }) {
 }
 
 /** 对话栏顶部：这条灵感，以及唯一的入口。 */
-function IdeaCard({ item, live, settings }) {
-  const production = item.production
+function IdeaCard({ item, live, settings, production, mode = 'video' }) {
   const running = production?.status === 'running'
+  const articleMode = mode === 'article'
   const styles = useDesk(s => s.state.styles ?? [])
   const activeId = useDesk(s => s.state.activeStyleId)
   return (
@@ -101,23 +107,23 @@ function IdeaCard({ item, live, settings }) {
           </select>
         </label>
       ) : null}
-      {!production || !['running', 'done'].includes(production.status) ? <button type="button" className="md-go" onClick={() => runProduce(item.id)}>{t('一键成稿')}</button> : null}
-      {running ? <ProgressCard production={{ ...production, id: item.id }} live={live} settings={settings} /> : null}
+      {!production || !['running', 'done'].includes(production.status) ? <button type="button" className="md-go" onClick={() => runProduce(item.id, mode)}>{articleMode ? t('生成图文') : t('一键成稿')}</button> : null}
+      {running ? <ProgressCard production={{ ...production, id: item.id }} live={live} settings={settings} mode={mode} /> : null}
       {production?.status === 'failed' ? <p className="md-idea-hint is-error">{production.error}</p> : null}
-      {!running && !settings?.imageReady ? <p className="md-idea-hint">{t('接入生图模型后，封面和分镜也会画好。')}<button type="button" onClick={() => setDesk({ settingsOpen: true })}>{t('去接入')}</button></p> : null}
+      {!running && !settings?.imageReady ? <p className="md-idea-hint">{articleMode ? t('接入生图模型后，封面和图片也会画好。') : t('接入生图模型后，封面和分镜也会画好。')}<button type="button" onClick={() => setDesk({ settingsOpen: true })}>{t('去接入')}</button></p> : null}
       {production?.notice ? <p className="md-idea-hint">{production.notice}</p> : null}
     </div>
   )
 }
 
 /** 视频封面：画面叠大字。没有画面时是一张渐变的纯文字封面。 */
-function Poster({ production, item, onOpen, onRetry }) {
-  const src = production?.cover?.src ?? (!production ? item.media?.poster ?? (item.media?.src && item.kind !== 'video' ? item.media.src : null) : null)
+function Poster({ production, item, mode = 'video', onOpen, onRetry }) {
+  const src = production?.cover?.src ?? (!production && mode === 'video' ? item.media?.poster ?? (item.media?.src && item.kind !== 'video' ? item.media.src : null) : null)
   const text = production?.stage === 'brief' ? '' : production?.coverText || production?.title || ''
   const status = production?.cover?.status ?? 'idle'
   return (
     <div className={`md-poster ${src ? '' : 'is-type'}`} data-status={status} onClick={production?.cover?.src ? onOpen : undefined} role={production?.cover?.src ? 'button' : undefined}>
-      {src ? <img key={src} src={src} alt={t('视频封面')} draggable={false} /> : null}
+      {src ? <img key={src} src={src} alt={t('封面')} draggable={false} /> : null}
       {text ? <b>{text}</b> : null}
       {onRetry && ['failed', 'skipped'].includes(status) ? <button type="button" className="md-plate-failed" title={production?.cover?.error} onClick={(event) => { event.stopPropagation(); onRetry() }}><Icon name="refresh" size={12} />{status === 'failed' ? t('封面没画成，重画') : t('画封面')}</button> : null}
     </div>
@@ -129,9 +135,9 @@ function Stat({ icon, value, unit }) {
 }
 
 /** 主视觉：渐变底、大标题、数字，右边是视频封面和配图的拼贴。 */
-function HeroTile({ item, live, onView }) {
+function HeroTile({ item, live, production, mode = 'video', onView }) {
   const settings = useDesk(s => s.settings)
-  const production = item.production
+  const articleMode = mode === 'article'
   const running = production?.status === 'running'
   const liveTitle = production?.stage === 'brief' && live?.title ? unescapeJson(live.title) : null
   const title = liveTitle ?? production?.title ?? item.title
@@ -145,35 +151,35 @@ function HeroTile({ item, live, onView }) {
   const [saving, setSaving] = React.useState(false)
   const copy = async () => {
     await navigator.clipboard.writeText(`# ${production.title}\n\n${production.article}`)
-    toast(t('脚本已复制'))
+    toast(articleMode ? t('图文稿已复制') : t('脚本已复制'))
   }
   const save = async () => {
     setSaving(true)
-    await saveProduced(item.id)
+    await saveProduced(item.id, mode)
     setSaving(false)
   }
   const again = () => setDesk({
     dialog: {
       title: t('重新成稿'),
       submitLabel: t('重新生成'),
-      fields: [{ name: 'note', label: t('现在的文章、封面和分镜会被替换，也会再消耗一次模型额度。'), type: 'hidden' }],
-      onSubmit: () => runProduce(item.id),
+      fields: [{ name: 'note', label: articleMode ? t('现在的图文稿、封面和配图会被替换，也会再消耗一次模型额度。') : t('现在的文章、封面和分镜会被替换，也会再消耗一次模型额度。'), type: 'hidden' }],
+      onSubmit: () => runProduce(item.id, mode),
     },
   })
   const figures = images.length ? images : [null, null].slice(0, settings?.imageCount ?? 2)
   return (
     <section className={`md-tile md-tile-hero ${running ? 'is-running' : ''}`}>
       <div className="md-hero-copy">
-        <AutoText className={`md-hero-title ${production ? '' : 'is-idle'}`} label={t('标题')} value={title} disabled={!done} onCommit={next => dispatchOps([{ op: 'update_production', id: item.id, title: next }], { label: t('修改标题'), silent: true })} />
+        <AutoText className={`md-hero-title ${production ? '' : 'is-idle'}`} label={t('标题')} value={title} disabled={!done} onCommit={next => dispatchOps([{ op: 'update_production', id: item.id, title: next, mode }], { label: t('修改标题'), silent: true })} />
         <div className="md-hero-stats">
           {words ? <Stat icon="pen" value={words} unit={t('字', { s: plural(words, '', 's') })} /> : null}
-          {shots.length ? <Stat icon="film" value={shots.length} unit={t('镜', { s: plural(shots.length, '', 's') })} /> : null}
-          {seconds ? <Stat icon="clock" value={seconds} unit={t('秒')} /> : null}
+          {!articleMode && shots.length ? <Stat icon="film" value={shots.length} unit={t('镜', { s: plural(shots.length, '', 's') })} /> : null}
+          {!articleMode && seconds ? <Stat icon="clock" value={seconds} unit={t('秒')} /> : null}
           {pictures ? <Stat icon="image" value={pictures} unit={t('张图', { s: plural(pictures, '', 's') })} /> : null}
         </div>
         {done ? (
           <div className="md-hero-actions">
-            <button type="button" className="md-pill is-primary" onClick={copy}><Icon name="copy" size={14} />{t('复制脚本')}</button>
+            <button type="button" className="md-pill is-primary" onClick={copy}><Icon name="copy" size={14} />{articleMode ? t('复制图文') : t('复制脚本')}</button>
             <button type="button" className="md-pill" onClick={save} disabled={saving}><Icon name="save" size={14} />{saving ? t('保存中…') : t('保存')}</button>
             <button type="button" className="md-pill" onClick={() => downloadCover({ src: production.cover?.src, text: production.coverText || production.title }, production.title).catch(err => toast(err.message, { error: true }))}><Icon name="image" size={14} />{t('下载封面')}</button>
             <label className="md-pill md-date-pill">
@@ -187,11 +193,11 @@ function HeroTile({ item, live, onView }) {
         ) : null}
       </div>
       <div className="md-collage">
-        <div className="md-collage-main"><Poster production={production} item={item} onOpen={() => onView('cover')} onRetry={settings?.imageReady && production?.status === 'done' && production.cover ? () => regenAsset(item.id, 'cover') : undefined} /></div>
-        {showFigures ? figures.map((image, i) => <div key={i} className={`md-collage-side is-${i}`}><Plate asset={image} alt={image?.caption ?? t('配图 {n}', { n: i + 1 })} onOpen={image?.src ? () => onView(`image:${i}`) : undefined} onRetry={image && settings?.imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${i}`) : undefined} /></div>) : null}
+        <div className="md-collage-main"><Poster production={production} item={item} mode={mode} onOpen={() => onView('cover')} onRetry={settings?.imageReady && production?.status === 'done' && production.cover ? () => regenAsset(item.id, 'cover', mode) : undefined} /></div>
+        {showFigures ? figures.map((image, i) => <div key={i} className={`md-collage-side is-${i}`}><Plate asset={image} alt={image?.caption ?? t('配图 {n}', { n: i + 1 })} onOpen={image?.src ? () => onView(`image:${i}`) : undefined} onRetry={image && settings?.imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${i}`, mode) : undefined} /></div>) : null}
       </div>
       <div className="md-hero-corner">
-        {production?.savedAt ? <IconButton icon="folder" label={t('打开保存的文件夹')} onClick={() => revealSaved(item.id)} /> : null}
+        {production?.savedAt ? <IconButton icon="folder" label={t('打开保存的文件夹')} onClick={() => revealSaved(item.id, mode)} /> : null}
         {done ? <IconButton icon="refresh" label={t('重新成稿')} onClick={again} /> : null}
         <IconButton icon="gear" label={t('设置')} onClick={() => setDesk({ settingsOpen: true })} />
         <IconButton icon="trash" label={t('删除这条灵感')} onClick={() => {
@@ -236,8 +242,8 @@ function ArticleBody({ production, text, onView }) {
   )
 }
 
-function ArticleTile({ item, live, open, onToggle, onView, tileRef }) {
-  const production = item.production
+function ArticleTile({ item, live, production, mode = 'video', open, onToggle, onView, tileRef }) {
+  const articleMode = mode === 'article'
   const running = production?.status === 'running'
   const scroller = React.useRef(null)
   const [editing, setEditing] = React.useState(false)
@@ -255,12 +261,12 @@ function ArticleTile({ item, live, open, onToggle, onView, tileRef }) {
     if (article && scroller.current) scroller.current.scrollTop = 0
   }, [Boolean(article)]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = () => {
-    if (draft !== article) dispatchOps([{ op: 'update_production', id: item.id, article: draft }], { label: t('修改文章'), silent: true })
+    if (draft !== article) dispatchOps([{ op: 'update_production', id: item.id, article: draft, mode }], { label: articleMode ? t('修改图文正文') : t('修改文章'), silent: true })
     setEditing(false)
   }
   const copy = async () => {
     await navigator.clipboard.writeText(article)
-    toast(t('脚本已复制'))
+    toast(articleMode ? t('图文稿已复制') : t('脚本已复制'))
   }
   // 选中一段，交给助手改
   const onMouseUp = () => {
@@ -278,21 +284,26 @@ function ArticleTile({ item, live, open, onToggle, onView, tileRef }) {
   return (
     <>
       <header className="md-tile-head">
-        <h2>{t('脚本')}</h2>
+        <h2>{articleMode ? t('图文正文') : t('脚本')}</h2>
         <span className="md-grow" />
         {article ? (
           <>
             {editing ? <button type="button" className="md-btn is-small" onClick={save}><Icon name="check" size={13} />{t('完成')}</button> : <IconButton icon="edit" label={t('直接修改')} onClick={() => setEditing(true)} />}
-            <IconButton icon="copy" label={t('复制脚本')} onClick={copy} />
+            <IconButton icon="copy" label={articleMode ? t('复制图文') : t('复制脚本')} onClick={copy} />
             <IconButton icon={open ? 'close' : 'expand'} label={open ? t('收起') : t('放大阅读')} onClick={onToggle} />
           </>
         ) : null}
       </header>
       {editing ? (
-        <textarea className="md-article-edit" aria-label={t('脚本')} value={draft} onChange={e => setDraft(e.target.value)} onBlur={save} />
+        <textarea className="md-article-edit" aria-label={articleMode ? t('图文正文') : t('脚本')} value={draft} onChange={e => setDraft(e.target.value)} onBlur={save} />
       ) : text ? (
         <div className="md-article-scroll" ref={scroller} onMouseUp={onMouseUp} onScroll={() => setPicked(null)}>
           {open ? <ArticleBody production={production} text={text} onView={onView} /> : <div className="md-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />}
+        </div>
+      ) : !production && !running ? (
+        <div className="md-empty-mode">
+          <p>{articleMode ? t('还没有图文成稿') : t('还没有成稿')}</p>
+          <button type="button" className="md-go" onClick={() => runProduce(item.id, mode)}>{articleMode ? t('生成图文') : t('一键成稿')}</button>
         </div>
       ) : (
         <div className={`md-skeleton ${running ? '' : 'is-still'}`} aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} />)}</div>
@@ -309,12 +320,12 @@ function ArticleTile({ item, live, open, onToggle, onView, tileRef }) {
   )
 }
 
-function ShotsTile({ item, live, count, open, onToggle, onView }) {
+function ShotsTile({ item, production, live, count, open, onToggle, onView, mode = 'video' }) {
   const imageReady = useDesk(s => s.settings?.imageReady)
-  const shots = item.production?.shots ?? []
+  const shots = production?.shots ?? []
   const visuals = live?.visuals ?? []
   // 策划案还在写的时候，分镜说明已经一格一格出现了
-  const cells = shots.length ? shots : Array.from({ length: count }, (_, i) => ({ no: i + 1, visual: visuals[i] ? unescapeJson(visuals[i]) : '', status: item.production?.status === 'running' ? 'pending' : 'idle' }))
+  const cells = shots.length ? shots : Array.from({ length: count }, (_, i) => ({ no: i + 1, visual: visuals[i] ? unescapeJson(visuals[i]) : '', status: production?.status === 'running' ? 'pending' : 'idle' }))
   const copy = async () => {
     const table = shots.map((s, i) => t('{no}. {shot}｜{sec} 秒\n画面：{visual}\n口播：{voice}', { no: i + 1, shot: t(s.shot), sec: s.seconds, visual: s.visual, voice: s.voice })).join('\n\n')
     await navigator.clipboard.writeText(table)
@@ -337,7 +348,7 @@ function ShotsTile({ item, live, count, open, onToggle, onView }) {
       <div className="md-shots" style={{ '--rows2': Math.ceil(cells.length / 2), '--rows3': Math.ceil(cells.length / 3) }}>
         {cells.map((shot, index) => (
           <figure key={index} className="md-shot">
-            <Plate asset={shot} paper alt={shot.visual} mark={String(shot.no ?? index + 1).padStart(2, '0')} onOpen={shot.src ? () => onView(`shot:${index}`) : undefined} onRetry={imageReady && item.production?.status === 'done' && shot.prompt !== undefined ? () => regenAsset(item.id, `shot:${index}`) : undefined} />
+            <Plate asset={shot} paper alt={shot.visual} mark={String(shot.no ?? index + 1).padStart(2, '0')} onOpen={shot.src ? () => onView(`shot:${index}`) : undefined} onRetry={imageReady && production?.status === 'done' && shot.prompt !== undefined ? () => regenAsset(item.id, `shot:${index}`, mode) : undefined} />
             <figcaption>
               <span className="md-shot-meta"><b>{String(shot.no ?? index + 1).padStart(2, '0')}</b>{shot.shot ? ` ${t(shot.shot)} · ${t('{n} 秒', { n: shot.seconds })}` : ''}</span>
               <p>{shot.voice || shot.visual}</p>
@@ -349,18 +360,43 @@ function ShotsTile({ item, live, count, open, onToggle, onView }) {
   )
 }
 
-function assetList(production) {
+/** 图文模式的配图墙：每张图带图注，点开看大图。 */
+function FiguresTile({ item, production, count, open, onToggle, onView, mode = 'article' }) {
+  const imageReady = useDesk(s => s.settings?.imageReady)
+  const images = production?.images ?? []
+  const cells = images.length ? images : Array.from({ length: count }, () => ({ status: production?.status === 'running' ? 'pending' : 'idle' }))
+  return (
+    <>
+      <header className="md-tile-head">
+        <h2>{t('配图')}</h2>
+        {images.length ? <span className="md-tile-meta">{t('{n} 张', { n: images.length, s: plural(images.length, '', 's') })}</span> : null}
+        <span className="md-grow" />
+        {images.length ? <IconButton icon={open ? 'close' : 'expand'} label={open ? t('收起') : t('放大')} onClick={onToggle} /> : null}
+      </header>
+      <div className="md-figures">
+        {cells.map((image, index) => (
+          <figure key={index} className="md-figure">
+            <Plate asset={image} alt={image?.caption ?? t('配图 {n}', { n: index + 1 })} onOpen={image?.src ? () => onView(`image:${index}`) : undefined} onRetry={image && imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${index}`, mode) : undefined} />
+            {image?.caption ? <figcaption>{image.caption}</figcaption> : null}
+          </figure>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function assetList(production, mode = 'video') {
   return [
-    ...(production?.cover?.src || production?.cover ? [{ target: 'cover', asset: production.cover, label: t('视频封面') }] : []),
+    ...(production?.cover?.src || production?.cover ? [{ target: 'cover', asset: production.cover, label: mode === 'article' ? t('封面') : t('视频封面') }] : []),
     ...(production?.images ?? []).map((asset, i) => ({ target: `image:${i}`, asset, label: t('配图 {n}', { n: i + 1 }), note: asset.caption })),
-    ...(production?.shots ?? []).map((asset, i) => ({ target: `shot:${i}`, asset, label: t('第 {n} 镜', { n: i + 1 }), note: [asset.visual, asset.voice].filter(Boolean).join(' · '), paper: true })),
+    ...(mode === 'video' ? (production?.shots ?? []).map((asset, i) => ({ target: `shot:${i}`, asset, label: t('第 {n} 镜', { n: i + 1 }), note: [asset.visual, asset.voice].filter(Boolean).join(' · '), paper: true })) : []),
   ]
 }
 
 /** 查看大图：左右键切换，可以重画、下载，或者让助手改。 */
-function Viewer({ item, target, onChange, onClose }) {
+function Viewer({ item, production, mode = 'video', target, onChange, onClose }) {
   const imageReady = useDesk(s => s.settings?.imageReady)
-  const list = assetList(item.production).filter(row => row.asset?.src || isBusy(row.asset))
+  const list = assetList(production, mode).filter(row => row.asset?.src || isBusy(row.asset))
   const index = Math.max(0, list.findIndex(row => row.target === target))
   const current = list[index]
   const ref = React.useRef(null)
@@ -393,7 +429,7 @@ function Viewer({ item, target, onChange, onClose }) {
           <IconButton icon="chevL" label={t('上一张')} disabled={!list[index - 1]} onClick={() => list[index - 1] && onChange(list[index - 1].target)} />
           <IconButton icon="chevR" label={t('下一张')} disabled={!list[index + 1]} onClick={() => list[index + 1] && onChange(list[index + 1].target)} />
           <button type="button" className="md-pill" onClick={() => { askAbout(current.label); onClose() }}><Icon name="chat" size={13} />{t('让助手改')}</button>
-          {imageReady ? <button type="button" className="md-pill" disabled={isBusy(current.asset)} onClick={() => regenAsset(item.id, current.target)}><Icon name="refresh" size={13} />{t('重画')}</button> : null}
+          {imageReady ? <button type="button" className="md-pill" disabled={isBusy(current.asset)} onClick={() => regenAsset(item.id, current.target, mode)}><Icon name="refresh" size={13} />{t('重画')}</button> : null}
           {current.asset.src ? <a className="md-pill" href={current.asset.src} download><Icon name="save" size={13} />{t('下载')}</a> : null}
           <IconButton icon="close" label={t('关闭')} onClick={onClose} />
         </footer>
@@ -402,7 +438,7 @@ function Viewer({ item, target, onChange, onClose }) {
   )
 }
 
-function Sheet({ item, live }) {
+function Sheet({ item, live, mode, onModeChange, production }) {
   const settings = useDesk(s => s.settings)
   const [open, setOpen] = React.useState(null)
   const [viewing, setViewing] = React.useState(null)
@@ -411,6 +447,10 @@ function Sheet({ item, live }) {
   const articleRef = React.useRef(null)
   const origin = React.useRef(null)
   const closing = React.useRef(false)
+  React.useEffect(() => {
+    setOpen(null)
+    setViewing(null)
+  }, [mode])
 
   const expand = (name) => {
     const box = bento.current.getBoundingClientRect()
@@ -464,16 +504,25 @@ function Sheet({ item, live }) {
   })
   return (
     <div className="md-sheet">
-      <div className={`md-bento ${open ? 'has-open' : ''}`} ref={bento}>
-        <HeroTile item={item} live={live} onView={setViewing} />
-        <section {...tile('article')}>
-          <ArticleTile item={item} live={live} open={open === 'article'} onToggle={() => toggle('article')} onView={setViewing} tileRef={articleRef} />
-        </section>
-        <section {...tile('shots')}>
-          <ShotsTile item={item} live={live} count={settings?.shotCount ?? 6} open={open === 'shots'} onToggle={() => toggle('shots')} onView={setViewing} />
-        </section>
+      <div className="md-sheet-tabs">
+        <Segmented label={t('成稿模式')} value={mode} onChange={onModeChange} options={[{ value: 'video', label: t('视频') }, { value: 'article', label: t('图文') }]} />
       </div>
-      {viewing ? <Viewer item={item} target={viewing} onChange={setViewing} onClose={() => setViewing(null)} /> : null}
+      <div className={`md-bento ${open ? 'has-open' : ''}`} ref={bento}>
+        <HeroTile item={item} live={live} production={production} mode={mode} onView={setViewing} />
+        <section {...tile('article')}>
+          <ArticleTile item={item} live={live} production={production} mode={mode} open={open === 'article'} onToggle={() => toggle('article')} onView={setViewing} tileRef={articleRef} />
+        </section>
+        {mode === 'video' ? (
+          <section {...tile('shots')}>
+            <ShotsTile item={item} production={production} live={live} mode={mode} count={settings?.shotCount ?? 6} open={open === 'shots'} onToggle={() => toggle('shots')} onView={setViewing} />
+          </section>
+        ) : (
+          <section {...tile('images')}>
+            <FiguresTile item={item} production={production} mode={mode} count={settings?.imageCount ?? 2} open={open === 'images'} onToggle={() => toggle('images')} onView={setViewing} />
+          </section>
+        )}
+      </div>
+      {viewing ? <Viewer item={item} production={production} mode={mode} target={viewing} onChange={setViewing} onClose={() => setViewing(null)} /> : null}
     </div>
   )
 }
@@ -488,14 +537,22 @@ export function Studio() {
   const settings = useDesk(s => s.settings)
   const chatOpen = useDesk(s => s.studioDock)
   const ref = React.useRef(null)
-  const production = item?.production
+  const [mode, setMode] = React.useState('video')
+  // 打开一条灵感时，优先停在已有的成稿模式；都没有就回到视频
+  React.useEffect(() => {
+    if (!item) return
+    setMode(productionOf(item, 'video') ? 'video' : productionOf(item, 'article') ? 'article' : 'video')
+    // 只在换灵感时重置
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id])
+  const production = productionOf(item, mode)
   const running = production?.status === 'running'
   const watching = running || [production?.cover, ...(production?.images ?? []), ...(production?.shots ?? [])].some(isBusy)
 
   React.useEffect(() => {
-    if (id && watching) return watchProduction(id)
+    if (id && watching) return watchProduction(id, mode)
     return undefined
-  }, [id, watching])
+  }, [id, mode, watching])
 
   // 从卡片的位置展开成整个工作区
   React.useLayoutEffect(() => {
@@ -530,13 +587,14 @@ export function Studio() {
       <div className="md-studio-chat">
         <ChatPanel
           itemId={item.id}
+          mode={mode}
           head={(
             <>
               <IconButton icon="chevL" label={t('返回灵感')} onClick={closeItem} />
               <h2>{t('成稿')}</h2>
             </>
           )}
-          top={<IdeaCard item={item} live={live} settings={settings} />}
+          top={<IdeaCard item={item} live={live} settings={settings} production={production} mode={mode} />}
           suggestions={production?.status === 'done' ? DONE_SUGGESTIONS.map(row => t(row)) : []}
           placeholder={running ? t('正在成稿，马上就好') : production?.status === 'done' ? t('想怎么改，直接说') : t('补充点想法，或者直接说要什么')}
           disabled={running}
@@ -544,7 +602,7 @@ export function Studio() {
         />
       </div>
       <button type="button" className="md-chat-toggle" aria-label={t('打开对话')} onClick={() => setDesk(s => ({ studioDock: !s.studioDock }))}><Icon name="chat" size={16} /></button>
-      <Sheet key={item.id} item={item} live={live} />
+      <Sheet key={item.id} item={item} live={live} mode={mode} onModeChange={setMode} production={production} />
     </div>
   )
 }

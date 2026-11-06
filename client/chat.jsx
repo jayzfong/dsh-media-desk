@@ -39,7 +39,7 @@ function Message({ message, canUndoThis }) {
 }
 
 /** 对话面板：首页的助手和成稿工作区共用。每条灵感有自己的对话。 */
-export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, disabled = false, intro = true }) {
+export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, disabled = false, intro = true, mode = 'video' }) {
   const all = useDesk(s => s.state.chat)
   const chat = React.useMemo(() => all.filter(m => (m.itemId ?? null) === (itemId ?? null)), [all, itemId])
   const thinking = useDesk(s => s.thinking)
@@ -65,7 +65,7 @@ export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, 
     const message = (value ?? text).trim()
     if (!message || thinking || disabled) return
     setText('')
-    sendChat(message)
+    sendChat(message, mode)
   }
   const lastBot = [...chat].reverse().find(m => m.role === 'assistant')
 

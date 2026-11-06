@@ -140,9 +140,19 @@ export function computeStreak(items, now = new Date()) {
   return streak
 }
 
+/** 读取某条灵感指定模式的成稿；旧数据没有 mode 时按视频处理。 */
+export function productionOf(item, mode = 'video') {
+  const key = mode === 'article' ? 'article' : 'video'
+  const variants = item?.productions
+  if (variants && variants[key]) return variants[key]
+  const production = item?.production
+  if (!production) return null
+  return (production.mode ?? 'video') === key ? production : null
+}
+
 /** 成稿之后，卡片显示封面和最终标题。 */
 export function displayItem(item) {
-  const production = item.production
+  const production = item.production?.title && item.production.status !== 'running' ? item.production : productionOf(item, 'article')
   if (!production?.title || production.status === 'running') return item
   const src = production.cover?.src
   return { ...item, title: production.title, ...(src ? { kind: 'image', media: { src, w: 3, h: 2 } } : {}) }

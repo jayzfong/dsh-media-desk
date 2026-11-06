@@ -1,6 +1,7 @@
 // 工作台的唯一写入口：对话、界面操作都走这里，统一校验字段并产出回执。
 // 模型输出也是不可信输入，所以这里只放行白名单字段。
 import { currentLang, platformName, tr } from './i18n.js'
+import { normalizeMode, productionOf } from './modes.js'
 
 export const STATUSES = ['idea', 'outline', 'draft', 'ready', 'published']
 export const STATUS_LABEL = { idea: '灵感', outline: '大纲', draft: '草稿', ready: '待发布', published: '已发布' }
@@ -110,7 +111,7 @@ function applyStatus(item, status) {
 function applySchedule(item, when) {
   item.scheduledAt = when
   if (item.status === 'published') return
-  const produced = item.production?.status === 'done'
+  const produced = productionOf(item, 'video')?.status === 'done' || productionOf(item, 'article')?.status === 'done'
   if (when) item.status = produced || ['draft', 'ready'].includes(item.status) ? 'ready' : 'outline'
   else if (item.status === 'ready') item.status = 'draft'
   else if (item.status === 'outline' && !produced) item.status = 'idea'
@@ -179,11 +180,12 @@ const handlers = {
   },
   update_production(state, op) {
     const item = findById(state.items, op.id)
-    if (!item.production) throw new Error(tr('这条灵感还没有成稿'))
-    if (typeof op.title === 'string') item.production.title = op.title.slice(0, 200)
-    if (typeof op.coverText === 'string') item.production.coverText = op.coverText.slice(0, 40)
-    if (typeof op.article === 'string') item.production.article = op.article.slice(0, 200000)
-    return { text: tr('修改《{title}》', { title: short(item.production.title) }), target: item.id, kind: 'item' }
+    const production = productionOf(item, normalizeMode(op.mode))
+    if (!production) throw new Error(tr('这条灵感还没有成稿'))
+    if (typeof op.title === 'string') production.title = op.title.slice(0, 200)
+    if (typeof op.coverText === 'string') production.coverText = op.coverText.slice(0, 40)
+    if (typeof op.article === 'string') production.article = op.article.slice(0, 200000)
+    return { text: tr('修改《{title}》', { title: short(production.title) }), target: item.id, kind: 'item' }
   },
   add_person(state, op, now) {
     const person = { id: newId('p'), name: '', role: tr('目标读者'), note: '', traits: [], tone: Math.floor(Math.random() * 6), createdAt: now, ...pick(PERSON_FIELDS, op) }

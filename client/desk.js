@@ -2,6 +2,7 @@
 import React from 'react'
 import { coverDataUrl } from './cover.js'
 import { lang, plural, setLanguagePreference, t } from './i18n.js'
+import { productionOf } from './util.js'
 
 const BASE = 'media-desk/'
 
@@ -94,9 +95,9 @@ export function closeItem() {
 }
 
 /** 一键成稿。任务在 Host 里跑，这里只负责启动和看进度。 */
-export async function runProduce(id) {
+export async function runProduce(id, mode = 'video') {
   try {
-    const data = await request('produce', { id })
+    const data = await request('produce', { id, mode })
     setDesk({ state: data.state })
   } catch (err) {
     report(err)
@@ -111,29 +112,35 @@ export async function cancelProduce(id) {
   }
 }
 
-export async function regenAsset(id, target) {
+export async function regenAsset(id, target, mode = 'video') {
   try {
-    const data = await request('produce/regen', { id, target })
+    const data = await request('produce/regen', { id, target, mode })
     setDesk({ state: data.state })
   } catch (err) {
     report(err)
   }
 }
 
-function mergeProduction(id, production, status) {
-  setDesk(s => ({ state: { ...s.state, items: s.state.items.map(item => (item.id === id ? { ...item, production, ...(status ? { status } : {}) } : item)) } }))
+function mergeProduction(id, production, status, mode) {
+  setDesk(s => ({ state: { ...s.state, items: s.state.items.map(item => {
+    if (item.id !== id) return item
+    const productions = { ...(item.productions ?? {}), [mode]: production }
+    const currentMode = item.production?.mode ?? 'video'
+    const latest = currentMode === mode || !item.production ? production : item.production
+    return { ...item, productions, production: latest, ...(status ? { status } : {}) }
+  }) } }))
 }
 
 /** 轮询进度，返回停止函数。 */
-export function watchProduction(id) {
+export function watchProduction(id, mode = 'video') {
   let stopped = false
   const tick = async () => {
     while (!stopped) {
       try {
-        const data = await request(`production?id=${encodeURIComponent(id)}`)
+        const data = await request(`production?id=${encodeURIComponent(id)}&mode=${encodeURIComponent(mode)}`)
         if (stopped) return
         setDesk(s => ({ live: { ...s.live, [id]: data.live } }))
-        if (data.production) mergeProduction(id, data.production, data.status)
+        if (data.production) mergeProduction(id, data.production, data.status, mode)
       } catch {
         // 连接抖动时下一轮再试
       }
@@ -170,18 +177,18 @@ export async function testImage(payload) {
   }
 }
 
-function runActions(actions) {
+function runActions(actions, mode = 'video') {
   for (const action of actions) {
     if (action.type === 'produce' && action.id) {
       openItem(action.id)
-      runProduce(action.id)
+      runProduce(action.id, mode)
     }
     if (action.type === 'open' && action.id) openItem(action.id)
     if (action.type === 'nav' && action.view) setDesk({ view: action.view })
   }
 }
 
-export async function sendChat(text) {
+export async function sendChat(text, mode = 'video') {
   const { chatQuote: quote, focusId } = snapshot
   // 选中的段落或某一镜，随消息一起交给模型
   const message = quote ? (quote.text ? t('关于{label}「{quote}」：{text}', { label: quote.label, quote: quote.text, text }) : t('关于{label}：{text}', { label: quote.label, text })) : text
@@ -191,9 +198,9 @@ export async function sendChat(text) {
     state: { ...s.state, chat: [...s.state.chat, { id: `tmp_${Date.now()}`, role: 'user', text: message, itemId: focusId ?? undefined }] },
   }))
   try {
-    const data = await request('chat', { message, focusId: focusId ?? undefined })
+    const data = await request('chat', { message, focusId: focusId ?? undefined, mode })
     setDesk({ state: data.state, canUndo: true, modelOk: data.modelOk, modelError: data.modelError })
-    runActions(data.actions || [])
+    runActions(data.actions || [], mode)
   } catch (err) {
     report(err)
     await loadDesk()
@@ -202,12 +209,14 @@ export async function sendChat(text) {
   }
 }
 
-export async function saveProduced(id) {
+export async function saveProduced(id, mode = 'video') {
   try {
-    const production = snapshot.state.items.find(row => row.id === id)?.production
+    const item = snapshot.state.items.find(row => row.id === id)
+    const production = productionOf(item, mode)
+    if (!production) throw new Error(t('还没有可以保存的成稿'))
     // 视频封面在浏览器里合成，一起存进文件夹
-    const videoCover = await coverDataUrl({ src: production.cover?.src, text: production.coverText || production.title }).catch(() => undefined)
-    const data = await request('produce/save', { id, videoCover })
+    const videoCover = mode === 'video' ? await coverDataUrl({ src: production.cover?.src, text: production.coverText || production.title }).catch(() => undefined) : undefined
+    const data = await request('produce/save', { id, mode, videoCover })
     setDesk({ state: data.state })
     toast(t('已保存到 {path}', { path: data.path }))
   } catch (err) {
@@ -215,9 +224,9 @@ export async function saveProduced(id) {
   }
 }
 
-export async function revealSaved(id) {
+export async function revealSaved(id, mode = 'video') {
   try {
-    await request('produce/reveal', { id })
+    await request('produce/reveal', { id, mode })
   } catch (err) {
     report(err)
   }

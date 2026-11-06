@@ -253,7 +253,7 @@ function swapFields(row, original, target) {
 }
 
 // 示例卡片在每种语言下各有一份：标题、正文和生成过的成稿。切走时把当前这份收起来，切回来原样放回。
-const ITEM_FIELDS = ['title', 'body', 'tags', 'source', 'media', 'production', 'drafts']
+const ITEM_FIELDS = ['title', 'body', 'tags', 'source', 'media', 'production', 'productions', 'drafts']
 
 const CJK = /[\u4e00-\u9fff]/
 
