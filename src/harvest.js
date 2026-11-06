@@ -63,6 +63,15 @@ function followerHint(text) {
 }
 
 
+const DESKTOP_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36'
+const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+const XHS_HOSTS = ['xiaohongshu.com', 'xhslink.com']
+
+/** 小红书桌面页会跳登录；手机 UA 的公开页才会下发 noteData。 */
+function userAgentFor(url) {
+  return XHS_HOSTS.some(host => url.hostname === host || url.hostname.endsWith(`.${host}`)) ? MOBILE_UA : DESKTOP_UA
+}
+
 const PRESERVED_QUERY = ['xsec_token', 'xsec_source']
 const MIN_EMBEDDED_TEXT = 20
 
@@ -211,7 +220,7 @@ async function fetchPublic(raw, fetchImpl) {
     const url = await assertPublicUrl(current)
     const res = await fetchImpl(url, {
       redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', accept: 'text/html,application/xhtml+xml', 'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8' },
+      headers: { 'user-agent': userAgentFor(url), accept: 'text/html,application/xhtml+xml', 'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8' },
     })
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
       current = carryQuery(url.toString(), new URL(res.headers.get('location'), url).toString())
