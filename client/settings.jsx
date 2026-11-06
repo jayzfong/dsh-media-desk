@@ -32,7 +32,7 @@ export function SettingsDialog() {
   React.useEffect(() => {
     if (!open || !settings) return
     const { image } = settings
-    setForm({ language: settings.language ?? 'auto', baseUrl: image.baseUrl, model: image.model, apiKey: '', size: image.size, quality: image.quality, extra: image.extra, exportDir: settings.exportDir ?? '', imageCount: settings.imageCount, shotCount: settings.shotCount, articleImageCount: settings.articleImageCount ?? 3, articleSize: settings.articleSize ?? '' })
+    setForm({ language: settings.language ?? 'auto', baseUrl: image.baseUrl, model: image.model, apiKey: '', size: image.size, quality: image.quality, extra: image.extra, exportDir: settings.exportDir ?? '', imageCount: settings.imageCount, shotCount: settings.shotCount, articleImageCount: settings.articleImageCount ?? 3, articleSize: settings.articleSize ?? '1024x1536' })
     setSample(null)
   }, [open, settings])
   if (!open || !form) return null
@@ -93,12 +93,12 @@ export function SettingsDialog() {
           </div>
         </div>
         <div className="md-form-section">
-          <h3>{t('图文成稿')}</h3>
+          <h3>{t('小红书图文')}</h3>
           <div className="md-field-row">
-            <label className="md-field"><span>{t('图文配图数量')}</span><input type="number" min="0" max="8" value={form.articleImageCount} onChange={e => set('articleImageCount', e.target.value)} /></label>
-            <label className="md-field"><span>{t('图文图片尺寸')}</span><input value={form.articleSize} onChange={e => set('articleSize', e.target.value)} placeholder={t('留空沿用通用尺寸')} /></label>
+            <label className="md-field"><span>{t('小红书配图数量')}</span><input type="number" min="0" max="8" value={form.articleImageCount} onChange={e => set('articleImageCount', e.target.value)} /></label>
+            <label className="md-field"><span>{t('小红书图片尺寸')}</span><input value={form.articleSize} onChange={e => set('articleSize', e.target.value)} placeholder={t('留空沿用通用尺寸')} /></label>
           </div>
-          <small>{t('图文图片尺寸留空时，沿用下面「高级」里的通用尺寸。')}</small>
+          <small>{t('小红书图片建议 3:4 竖图，例如 1024x1536。留空时沿用下面「高级」里的通用尺寸。')}</small>
           {settings.articleImageCount === undefined ? <small>{t('当前 Host 还是旧版本，重启 DeepSeek Harness 后图文设置才会保存生效。')}</small> : null}
         </div>
         <button type="button" className="md-advanced" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><Icon name={advanced ? 'chevD' : 'chevR'} size={12} />{t('高级')}</button>

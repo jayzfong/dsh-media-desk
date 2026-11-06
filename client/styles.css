@@ -367,6 +367,9 @@ button.md-stamp:not(:disabled):hover { transform: scale(1.08) rotate(-2deg); }
 .md-collage .md-plate { border-radius: 10px; }
 .md-collage-main { left: 10%; top: 0; width: 72%; aspect-ratio: 3 / 2; transform: rotate(-1.6deg); z-index: 2; }
 .md-collage-side { width: 38%; aspect-ratio: 3 / 2; }
+.md-collage.is-article { width: min(34%, 280px); aspect-ratio: 3 / 4; margin-top: 0; }
+.md-collage.is-article .md-collage-main { left: 0; top: 0; width: 100%; aspect-ratio: 3 / 4; transform: rotate(-1.2deg); }
+.md-collage.is-article .md-collage-side { display: none; }
 .md-collage-side.is-0 { left: 0; bottom: 0; transform: rotate(-5deg); z-index: 3; }
 .md-collage-side.is-1 { right: 0; bottom: 6%; transform: rotate(4deg); z-index: 1; }
 .md-collage-side.is-2, .md-collage-side.is-3 { display: none; }
@@ -398,7 +401,7 @@ button.md-stamp:not(:disabled):hover { transform: scale(1.08) rotate(-2deg); }
 .md-root .md-tile-article.is-open .md-prose h2 { font-size: 19px; line-height: 30px; margin: 26px 0 8px; }
 .md-root .md-tile-article.is-open .md-prose p { margin-bottom: 14px; }
 .md-article-figure { margin: 10px 0 24px; }
-.md-article-figure .md-plate { aspect-ratio: 3 / 2; height: auto; border-radius: var(--r-lg); }
+.md-article-figure .md-plate { aspect-ratio: 3 / 4; height: auto; border-radius: var(--r-lg); }
 .md-article-figure figcaption { margin-top: 8px; text-align: center; color: var(--ink3); font-size: 12.5px; line-height: 18px; }
 .md-root .md-article-edit { flex: 1; display: block; width: 100%; min-height: 0; padding: 0 20px 22px 18px; border: 0; background: none; outline: 0; resize: none; font-size: 14px; line-height: 25px; }
 .md-root .md-tile-article.is-open .md-article-edit { width: min(740px, 100%); margin: 0 auto; font-size: 16px; line-height: 30px; }
@@ -411,9 +414,9 @@ button.md-stamp:not(:disabled):hover { transform: scale(1.08) rotate(-2deg); }
 .md-root .md-pick { background: var(--primary); color: var(--on-primary); box-shadow: var(--dsw-elevation-prominent); }
 
 /* 图文配图 */
-.md-figures { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 12px; padding: 2px 16px 16px; }
+.md-figures { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; align-content: start; gap: 12px; padding: 2px 16px 16px; overflow-y: auto; }
 .md-figure { margin: 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.md-figure .md-plate { flex: 1; min-height: 0; }
+.md-figure .md-plate { flex: none; width: 100%; aspect-ratio: 3 / 4; }
 .md-figure figcaption { flex: none; margin-top: 6px; color: var(--ink2); font-size: 12px; line-height: 17px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .md-tile-images.is-open .md-figures { gap: 16px 18px; padding: 2px 24px 24px; }
 .md-tile-images.is-open .md-figure figcaption { font-size: 13.5px; line-height: 20px; }
@@ -439,6 +442,7 @@ button.md-stamp:not(:disabled):hover { transform: scale(1.08) rotate(-2deg); }
 @container (max-width: 620px) {
   .md-tile-hero { flex-direction: column; gap: 14px; }
   .md-collage { width: 100%; max-width: 420px; align-self: center; }
+  .md-collage.is-article { width: min(62%, 260px); }
 }
 @container (max-width: 620px) or (max-height: 620px) {
   .md-bento { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "hero" "article" "shots"; }

@@ -163,12 +163,13 @@ function voiceBlock(state, voice) {
 export function articlePrompts(state, item, voice, plan, mode = 'video') {
   const { angle, parent } = itemBrief(state, item)
   const articleMode = mode === 'article'
-  const outline = plan?.outline?.length ? `\n标题已经定好：「${plan.title}」。不要再写标题，直接从开头写起。\n段落小标题依次使用：${plan.outline.map(h => `「## ${h}」`).join('、')}，一字不改。` : `\n第一行是「# 标题」，标题要具体、有钩子，${byLang('不超过 24 字', '不超过 60 个字符')}。`
+  const outline = plan?.outline?.length ? `\n标题已经定好：「${plan.title}」。不要再写标题，直接从开头写起。\n段落小标题依次使用：${plan.outline.map(h => `「## ${h}」`).join('、')}，一字不改。` : `\n第一行是「# 标题」，标题要具体、有钩子，${articleMode ? byLang('不超过 20 字', '不超过 60 个字符') : byLang('不超过 24 字', '不超过 60 个字符')}。`
   const facts = plan?.facts?.length ? `\n这些事实已经定好，数字、人名、案例必须一字不差：\n${plan.facts.map(row => `- ${row}`).join('\n')}` : ''
   const system = articleMode
-    ? `你是这位创作者本人，要写一篇可以直接发布的图文稿。写出完整的图文正文，用 Markdown。${outline}${facts}
-结构是抓人的开头、3 到 5 个「## 小标题」的段落和结尾，${byLang('800 到 1500 字', '450 到 800 个英文单词')}。
-用具体的细节、场景和例子，像跟人聊天，不用空话、不用${byLang('「总而言之」', '「In conclusion」「At the end of the day」')}这类套话，不要写镜头说明、前言或备注。
+    ? `你是这位创作者本人，正在写一篇小红书图文笔记。写出可以直接发布的笔记正文，用 Markdown。${outline}${facts}
+结构：开头先给具体场景或结论，再写 3 到 5 个「## 小标题」段落，结尾收一个行动或问题；${byLang('正文 500 到 900 字', '300 到 500 个英文单词')}。
+小红书主要在手机上读：段落短一点，多用具体细节、数字和例子，像跟朋友分享；不用空话、不用${byLang('「总而言之」', '「In conclusion」「At the end of the day」')}这类套话，不要写镜头说明、口播或分镜。
+正文最后另起一段，放 6 到 10 个相关话题标签，每个以 # 开头，用空格分隔。
 少用${byLang('「不是 A，而是 B」', '「It\'s not A, it\'s B」')}这种句式，不要每段都用金句收尾，读起来要像人写的。
 
 ${voiceBlock(state, voice)}
@@ -210,10 +211,10 @@ ${voiceBlock(state, settings.voice)}
 /** 图文稿的策划案：只要标题、封面字、正文小标题和配图，不要视频分镜。 */
 export function articlePlanPrompts(state, item, settings) {
   const { angle } = itemBrief(state, item)
-  const system = `你是内容主编和美术指导。根据一句灵感，定下这篇图文稿的策划案。
+  const system = `你是小红书内容主编和美术指导。根据一句灵感，定下这篇小红书图文笔记的策划案。
 只输出一个 JSON 对象，字段按下面的顺序：
-{"title":"图文标题，具体、有钩子，${byLang('不超过 24 字', '不超过 60 个字符')}","coverText":"封面上的大字，要有冲击力，${byLang('不超过 12 字', '2 到 4 个英文单词，不超过 24 个字符')}","facts":["这篇内容用到的具体事实：数字、人名、案例，正文和配图都要照用，3 到 6 条"],"outline":["3 到 5 个小标题${byLang('', '，每个不超过 40 个字符')}"],"cover":"封面画面描述（英文），主体突出，下方留出放大字的空间","characters":"反复出现的人物和场景的外观描述（英文），让每张图保持一致；没有就留空","images":[{"anchor":"这张图放在哪个小标题之后，原样抄写小标题","caption":"${byLang('平实的中文图注，只说明画面内容，不超过 16 字', '平实的英文图注，只说明画面内容，不超过 8 个单词')}","prompt":"配图画面描述（英文）"}]}
-images 正好 ${settings.imageCount} 个，不要输出 shots，不要写分镜或口播。这是一篇图文稿，不是视频脚本。
+{"title":"小红书笔记标题，具体、有钩子，${byLang('不超过 20 字', '不超过 60 个字符')}","coverText":"小红书封面上的大字，要有冲击力，${byLang('不超过 10 字', '2 到 4 个英文单词，不超过 24 个字符')}","facts":["这条笔记用到的具体事实：数字、人名、案例，正文和配图都要照用，3 到 6 条"],"outline":["3 到 5 个小标题${byLang('', '，每个不超过 40 个字符')}"],"cover":"小红书封面画面描述（英文），3:4 竖版构图，主体突出，下方留出放大字的空间","characters":"反复出现的人物和场景的外观描述（英文），让每张图保持一致；没有就留空","images":[{"anchor":"这张图放在哪个小标题之后，原样抄写小标题","caption":"${byLang('平实的中文图注，只说明画面内容，不超过 16 字', '平实的英文图注，只说明画面内容，不超过 8 个单词')}","prompt":"小红书配图画面描述（英文），3:4 竖版构图，适合手机浏览"}]}
+images 正好 ${settings.imageCount} 个，全部按 3:4 竖版构图，不要输出 shots，不要写分镜或口播。这是一篇小红书图文笔记，不是视频脚本。
 画面描述只写看得见的东西：主体、动作、环境、构图、光线。不要在画面里放任何文字。
 
 ${voiceBlock(state, settings.voice)}
@@ -226,9 +227,9 @@ ${voiceBlock(state, settings.voice)}
 export function fallbackArticle(state, item, mode = 'video') {
   if (mode === 'article') {
     if (currentLang() === 'en') {
-      return `# ${item.title}\n\n> No text model is connected, so this is a structural draft for you to fill in.\n\n${item.body || ''}\n\n## Opening\n(Open with a specific person and a number)\n\n## Why this matters\n(Where your readers are stuck right now)\n\n## What I do\n(Three concrete steps, each with an example)\n\n## Ending\n(Leave one action only)\n`
+      return `# ${item.title}\n\n> No text model is connected, so this is a structural draft for you to fill in.\n\n${item.body || ''}\n\n## Opening\n(Open with a specific person and a number)\n\n## Why this matters\n(Where your readers are stuck right now)\n\n## What I do\n(Three concrete steps, each with an example)\n\n## Ending\n(Leave one action only)\n\n#WorkBuddy #AI #Productivity\n`
     }
-    return `# ${item.title}\n\n> 当前没有连上文字模型，这是一份结构草稿，需要你补全。\n\n${item.body || ''}\n\n## 开场\n（用具体的人和数字开场）\n\n## 为什么这件事重要\n（读者现在卡在哪里）\n\n## 我的做法\n（列 3 个具体步骤，每步配一个例子）\n\n## 结尾\n（只留一个行动）\n`
+    return `# ${item.title}\n\n> 当前没有连上文字模型，这是一份小红书结构草稿，需要你补全。\n\n${item.body || ''}\n\n## 开场\n（用具体的人和数字开场）\n\n## 为什么这件事重要\n（读者现在卡在哪里）\n\n## 我的做法\n（列 3 个具体步骤，每步配一个例子）\n\n## 结尾\n（只留一个行动）\n\n#WorkBuddy #AI工具 #效率工具\n`
   }
   if (currentLang() === 'en') {
     return `# ${item.title}\n\n> No text model is connected, so this is a structural draft for you to fill in.\n\n${item.body || ''}\n\n## Opening\n(Open with a specific person and a number)\n\n## Why this matters\n(Where your viewers are stuck right now)\n\n## What I do\n(Three concrete steps, each with an example)\n\n## Ending\n(Leave one action only)\n`
@@ -258,8 +259,8 @@ export function fallbackPlan(item, article, settings, mode = 'video') {
     title: item.title,
     coverText: shortCoverText(item.title),
     outline: headings,
-    cover: `A striking visual metaphor for: ${item.title}`,
-    images: Array.from({ length: settings.imageCount }, (_, i) => ({ anchor: headings[i + 1] ?? headings[i] ?? '', caption: '', prompt: `An illustration about: ${item.title}. ${headings[i] ?? ''}` })),
+    cover: mode === 'article' ? `A 3:4 vertical Xiaohongshu note cover image for: ${item.title}` : `A striking visual metaphor for: ${item.title}`,
+    images: Array.from({ length: settings.imageCount }, (_, i) => ({ anchor: headings[i + 1] ?? headings[i] ?? '', caption: '', prompt: mode === 'article' ? `A 3:4 vertical Xiaohongshu note image about: ${item.title}. ${headings[i] ?? ''}` : `An illustration about: ${item.title}. ${headings[i] ?? ''}` })),
     shots: mode === 'article' ? [] : Array.from({ length: settings.shotCount }, (_, i) => {
       const beat = beats[i % beats.length]
       return { shot: sizes[i % sizes.length], visual: beat, voice: i === 0 ? item.title : '', seconds: 5, prompt: `${beat}, about: ${item.title}` }

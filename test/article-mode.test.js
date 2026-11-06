@@ -3,9 +3,23 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { articlePlanPrompts, articlePrompts } from '../src/ai.js'
 import { Producer } from '../src/produce.js'
 import { Settings } from '../src/settings.js'
+import { buildSeed } from '../src/seed.js'
 import { Store } from '../src/store.js'
+
+test('小红书图文提示词：竖向配图、话题标签，不写口播分镜', () => {
+  const state = buildSeed(new Date('2026-11-06T10:00:00+08:00'))
+  const item = state.items[0]
+  const note = articlePrompts(state, item, '', null, 'article').system
+  assert.match(note, /小红书/)
+  assert.match(note, /# 开头/)
+  assert.doesNotMatch(note, /口播脚本/)
+  const plan = articlePlanPrompts(state, item, { imageCount: 3, voice: '' }).system
+  assert.match(plan, /3:4/)
+  assert.match(plan, /不要输出 shots/)
+})
 
 test('图文模式：只生成正文和配图，不生成视频分镜', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'media-desk-article-'))

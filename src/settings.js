@@ -10,7 +10,7 @@ const DEFAULTS = {
   imageCount: 2,
   shotCount: 6,
   articleImageCount: 3,
-  articleSize: '',
+  articleSize: '1024x1536',
   language: 'auto',
 }
 

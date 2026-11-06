@@ -62,10 +62,10 @@ function ProgressCard({ production, live, settings, mode = 'video' }) {
   const count = list => list.filter(a => a.src).length
   const planned = production.stage !== 'brief'
   const scriptLabel = production.article
-    ? (articleMode ? t('正文 {n} 字', { n: words, s: plural(words, '', 's') }) : t('脚本 {n} 字', { n: words, s: plural(words, '', 's') }))
+    ? (articleMode ? t('小红书正文 {n} 字', { n: words, s: plural(words, '', 's') }) : t('脚本 {n} 字', { n: words, s: plural(words, '', 's') }))
     : words
       ? (articleMode ? t('正在写 {n} 字', { n: words, s: plural(words, '', 's') }) : t('正在写 {n} 字', { n: words, s: plural(words, '', 's') }))
-      : (articleMode ? t('正文') : t('脚本'))
+      : (articleMode ? t('小红书正文') : t('脚本'))
   const steps = [
     { label: t('标题和封面字'), done: planned, active: !planned },
     { label: scriptLabel, done: Boolean(production.article), active: planned && !production.article },
@@ -107,10 +107,10 @@ function IdeaCard({ item, live, settings, production, mode = 'video' }) {
           </select>
         </label>
       ) : null}
-      {!production || !['running', 'done'].includes(production.status) ? <button type="button" className="md-go" onClick={() => runProduce(item.id, mode)}>{articleMode ? t('生成图文') : t('一键成稿')}</button> : null}
+      {!production || !['running', 'done'].includes(production.status) ? <button type="button" className="md-go" onClick={() => runProduce(item.id, mode)}>{articleMode ? t('生成小红书图文') : t('一键成稿')}</button> : null}
       {running ? <ProgressCard production={{ ...production, id: item.id }} live={live} settings={settings} mode={mode} /> : null}
       {production?.status === 'failed' ? <p className="md-idea-hint is-error">{production.error}</p> : null}
-      {!running && !settings?.imageReady ? <p className="md-idea-hint">{articleMode ? t('接入生图模型后，封面和图片也会画好。') : t('接入生图模型后，封面和分镜也会画好。')}<button type="button" onClick={() => setDesk({ settingsOpen: true })}>{t('去接入')}</button></p> : null}
+      {!running && !settings?.imageReady ? <p className="md-idea-hint">{articleMode ? t('接入生图模型后，封面和小红书配图也会画好。') : t('接入生图模型后，封面和分镜也会画好。')}<button type="button" onClick={() => setDesk({ settingsOpen: true })}>{t('去接入')}</button></p> : null}
       {production?.notice ? <p className="md-idea-hint">{production.notice}</p> : null}
     </div>
   )
@@ -134,7 +134,7 @@ function Stat({ icon, value, unit }) {
   return <span className="md-hero-stat"><Icon name={icon} size={13} /><b>{value}</b>{unit}</span>
 }
 
-/** 主视觉：渐变底、大标题、数字，右边是视频封面和配图的拼贴。 */
+/** 主视觉：渐变底、大标题、数字，右边是视频封面和配图的拼贴；图文模式展示 3:4 封面。 */
 function HeroTile({ item, live, production, mode = 'video', onView }) {
   const settings = useDesk(s => s.settings)
   const articleMode = mode === 'article'
@@ -147,11 +147,11 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
   const images = production?.images ?? []
   const done = production?.status === 'done'
   const pictures = [production?.cover, ...images].filter(a => a?.src).length
-  const showFigures = settings?.imageReady || images.some(a => a?.src)
+  const showFigures = !articleMode && (settings?.imageReady || images.some(a => a?.src))
   const [saving, setSaving] = React.useState(false)
   const copy = async () => {
     await navigator.clipboard.writeText(`# ${production.title}\n\n${production.article}`)
-    toast(articleMode ? t('图文稿已复制') : t('脚本已复制'))
+    toast(articleMode ? t('小红书文案已复制') : t('脚本已复制'))
   }
   const save = async () => {
     setSaving(true)
@@ -162,7 +162,7 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
     dialog: {
       title: t('重新成稿'),
       submitLabel: t('重新生成'),
-      fields: [{ name: 'note', label: articleMode ? t('现在的图文稿、封面和配图会被替换，也会再消耗一次模型额度。') : t('现在的文章、封面和分镜会被替换，也会再消耗一次模型额度。'), type: 'hidden' }],
+      fields: [{ name: 'note', label: articleMode ? t('现在的小红书图文稿、封面和配图会被替换，也会再消耗一次模型额度。') : t('现在的文章、封面和分镜会被替换，也会再消耗一次模型额度。'), type: 'hidden' }],
       onSubmit: () => runProduce(item.id, mode),
     },
   })
@@ -179,7 +179,7 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
         </div>
         {done ? (
           <div className="md-hero-actions">
-            <button type="button" className="md-pill is-primary" onClick={copy}><Icon name="copy" size={14} />{articleMode ? t('复制图文') : t('复制脚本')}</button>
+            <button type="button" className="md-pill is-primary" onClick={copy}><Icon name="copy" size={14} />{articleMode ? t('复制小红书文案') : t('复制脚本')}</button>
             <button type="button" className="md-pill" onClick={save} disabled={saving}><Icon name="save" size={14} />{saving ? t('保存中…') : t('保存')}</button>
             <button type="button" className="md-pill" onClick={() => downloadCover({ src: production.cover?.src, text: production.coverText || production.title }, production.title).catch(err => toast(err.message, { error: true }))}><Icon name="image" size={14} />{t('下载封面')}</button>
             <label className="md-pill md-date-pill">
@@ -192,7 +192,7 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
           </div>
         ) : null}
       </div>
-      <div className="md-collage">
+      <div className={`md-collage ${articleMode ? 'is-article' : ''}`}>
         <div className="md-collage-main"><Poster production={production} item={item} mode={mode} onOpen={() => onView('cover')} onRetry={settings?.imageReady && production?.status === 'done' && production.cover ? () => regenAsset(item.id, 'cover', mode) : undefined} /></div>
         {showFigures ? figures.map((image, i) => <div key={i} className={`md-collage-side is-${i}`}><Plate asset={image} alt={image?.caption ?? t('配图 {n}', { n: i + 1 })} onOpen={image?.src ? () => onView(`image:${i}`) : undefined} onRetry={image && settings?.imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${i}`, mode) : undefined} /></div>) : null}
       </div>
@@ -261,12 +261,12 @@ function ArticleTile({ item, live, production, mode = 'video', open, onToggle, o
     if (article && scroller.current) scroller.current.scrollTop = 0
   }, [Boolean(article)]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = () => {
-    if (draft !== article) dispatchOps([{ op: 'update_production', id: item.id, article: draft, mode }], { label: articleMode ? t('修改图文正文') : t('修改文章'), silent: true })
+    if (draft !== article) dispatchOps([{ op: 'update_production', id: item.id, article: draft, mode }], { label: articleMode ? t('修改小红书正文') : t('修改文章'), silent: true })
     setEditing(false)
   }
   const copy = async () => {
     await navigator.clipboard.writeText(article)
-    toast(articleMode ? t('图文稿已复制') : t('脚本已复制'))
+    toast(articleMode ? t('小红书文案已复制') : t('脚本已复制'))
   }
   // 选中一段，交给助手改
   const onMouseUp = () => {
@@ -284,26 +284,26 @@ function ArticleTile({ item, live, production, mode = 'video', open, onToggle, o
   return (
     <>
       <header className="md-tile-head">
-        <h2>{articleMode ? t('图文正文') : t('脚本')}</h2>
+        <h2>{articleMode ? t('小红书正文') : t('脚本')}</h2>
         <span className="md-grow" />
         {article ? (
           <>
             {editing ? <button type="button" className="md-btn is-small" onClick={save}><Icon name="check" size={13} />{t('完成')}</button> : <IconButton icon="edit" label={t('直接修改')} onClick={() => setEditing(true)} />}
-            <IconButton icon="copy" label={articleMode ? t('复制图文') : t('复制脚本')} onClick={copy} />
+            <IconButton icon="copy" label={articleMode ? t('复制小红书文案') : t('复制脚本')} onClick={copy} />
             <IconButton icon={open ? 'close' : 'expand'} label={open ? t('收起') : t('放大阅读')} onClick={onToggle} />
           </>
         ) : null}
       </header>
       {editing ? (
-        <textarea className="md-article-edit" aria-label={articleMode ? t('图文正文') : t('脚本')} value={draft} onChange={e => setDraft(e.target.value)} onBlur={save} />
+        <textarea className="md-article-edit" aria-label={articleMode ? t('小红书正文') : t('脚本')} value={draft} onChange={e => setDraft(e.target.value)} onBlur={save} />
       ) : text ? (
         <div className="md-article-scroll" ref={scroller} onMouseUp={onMouseUp} onScroll={() => setPicked(null)}>
           {open ? <ArticleBody production={production} text={text} onView={onView} /> : <div className="md-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />}
         </div>
       ) : !production && !running ? (
         <div className="md-empty-mode">
-          <p>{articleMode ? t('还没有图文成稿') : t('还没有成稿')}</p>
-          <button type="button" className="md-go" onClick={() => runProduce(item.id, mode)}>{articleMode ? t('生成图文') : t('一键成稿')}</button>
+          <p>{articleMode ? t('还没有小红书图文稿') : t('还没有成稿')}</p>
+          <button type="button" className="md-go" onClick={() => runProduce(item.id, mode)}>{articleMode ? t('生成小红书图文') : t('一键成稿')}</button>
         </div>
       ) : (
         <div className={`md-skeleton ${running ? '' : 'is-still'}`} aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} />)}</div>
@@ -368,7 +368,7 @@ function FiguresTile({ item, production, count, open, onToggle, onView, mode = '
   return (
     <>
       <header className="md-tile-head">
-        <h2>{t('配图')}</h2>
+        <h2>{t('小红书配图')}</h2>
         {images.length ? <span className="md-tile-meta">{t('{n} 张', { n: images.length, s: plural(images.length, '', 's') })}</span> : null}
         <span className="md-grow" />
         {images.length ? <IconButton icon={open ? 'close' : 'expand'} label={open ? t('收起') : t('放大')} onClick={onToggle} /> : null}

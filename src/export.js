@@ -37,9 +37,9 @@ export async function saveProduction(production, { filesDir, exportDir, videoCov
   const en = currentLang() === 'en'
   const articleMode = mode === 'article'
   const names = en
-    ? { cover: 'cover-original', videoCover: 'video-cover.jpg', figure: i => `figure-${i}`, shot: n => `shot-${n}`, script: articleMode ? 'article.md' : 'script.md', board: 'storyboard.md' }
-    : { cover: '封面原图', videoCover: '视频封面.jpg', figure: i => `配图${i}`, shot: n => `分镜${n}`, script: articleMode ? '图文.md' : '脚本.md', board: '分镜脚本.md' }
-  const target = production.savedPath || join(exportDir, `${folderName(production.title)}${articleMode && !en ? '（图文）' : articleMode ? ' (article)' : ''}`)
+    ? { cover: 'cover-original', videoCover: 'video-cover.jpg', figure: i => `figure-${i}`, shot: n => `shot-${n}`, script: articleMode ? 'xiaohongshu-note.md' : 'script.md', board: 'storyboard.md' }
+    : { cover: '封面原图', videoCover: '视频封面.jpg', figure: i => `配图${i}`, shot: n => `分镜${n}`, script: articleMode ? '小红书笔记.md' : '脚本.md', board: '分镜脚本.md' }
+  const target = production.savedPath || join(exportDir, `${folderName(production.title)}${articleMode && !en ? '（小红书）' : articleMode ? ' (Xiaohongshu)' : ''}`)
   await mkdir(target, { recursive: true })
   const files = []
 
