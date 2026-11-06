@@ -62,6 +62,149 @@ function followerHint(text) {
   return Number.isFinite(value) ? Math.round(value) : null
 }
 
+
+const PRESERVED_QUERY = ['xsec_token', 'xsec_source']
+const MIN_EMBEDDED_TEXT = 20
+
+/** 从 start 处的 { 开始找配对的右括号；字符串里的括号不算。 */
+function balancedObject(text, start) {
+  if (text[start] !== '{') return null
+  let depth = 0
+  let quote = null
+  let escaped = false
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i]
+    if (quote !== null) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === quote) quote = null
+      continue
+    }
+    if (ch === '"') { quote = ch; continue }
+    if (ch === '{') depth += 1
+    else if (ch === '}' && (depth -= 1) === 0) return text.slice(start, i + 1)
+  }
+  return null
+}
+
+/** JS 内嵌对象里有 undefined / NaN 这类 JSON 不认的字面量，替换成 null 再解析。 */
+function jsonSafe(source) {
+  let out = ''
+  for (let i = 0; i < source.length;) {
+    const ch = source[i]
+    if (ch === '"') {
+      let j = i + 1
+      out += ch
+      while (j < source.length) {
+        out += source[j]
+        if (source[j] === '\\') { out += source[j + 1] ?? ''; j += 2; continue }
+        if (source[j] === '"') { j += 1; break }
+        j += 1
+      }
+      i = j
+      continue
+    }
+    const word = source.startsWith('undefined', i) ? 'undefined' : source.startsWith('NaN', i) ? 'NaN' : source.startsWith('Infinity', i) ? 'Infinity' : null
+    if (word && !/[\w$]/.test(source[i - 1] ?? '') && !/[\w$]/.test(source[i + word.length] ?? '')) {
+      out += 'null'
+      i += word.length
+      continue
+    }
+    out += ch
+    i += 1
+  }
+  return out
+}
+
+/** 解析 window.__INITIAL_STATE__，失败返回 null；不执行页面里的任何代码。 */
+export function initialPageState(html) {
+  const marker = /window\.__INITIAL_STATE__\s*=\s*/.exec(html)
+  if (!marker) return null
+  let start = marker.index + marker[0].length
+  while (/\s/.test(html[start] ?? '')) start += 1
+  const block = balancedObject(html, start)
+  if (!block) return null
+  try {
+    return JSON.parse(block)
+  } catch {
+    try {
+      return JSON.parse(jsonSafe(block))
+    } catch {
+      return null
+    }
+  }
+}
+
+function plainText(value) {
+  return decodeEntities(String(value)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' '))
+    .replace(/\r/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function noteFields(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const title = [value.title, value.noteCard?.title, value.noteCard?.displayTitle]
+    .find(row => typeof row === 'string' && row.trim()) ?? ''
+  const desc = [value.desc, value.noteCard?.desc]
+    .find(row => typeof row === 'string' && row.trim()) ?? ''
+  if (!title && !desc) return null
+  const shape = value.noteId || value.note_id || value.noteCard || value.interactInfo || value.user || value.type || value.noteType
+  if (!shape && desc.length < MIN_EMBEDDED_TEXT) return null
+  return { title: plainText(title), desc: plainText(desc) }
+}
+
+/**
+ * 小红书等 SSR 页面把正文放在内嵌状态里。优先找 noteDetailMap 一类的结构，
+ * 找不到再做一次浅层遍历，避免把导航栏里的 desc 之类配置误当正文。
+ */
+export function embeddedPost(html) {
+  const state = initialPageState(html)
+  if (!state) return null
+  const direct = [
+    state.note?.noteDetailMap,
+    state.note?.noteData,
+    state.noteData,
+    state.note?.note,
+    state.note,
+  ]
+  const queue = direct.map(value => ({ value, depth: 0 }))
+  const seen = new Set()
+  let best = null
+  let visited = 0
+  while (queue.length && visited < 20000) {
+    const { value, depth } = queue.shift()
+    visited += 1
+    if (!value || typeof value !== 'object' || seen.has(value)) continue
+    seen.add(value)
+    if (!Array.isArray(value)) {
+      const note = noteFields(value)
+      if (note?.desc && (!best || note.desc.length > best.desc.length)) best = note
+    }
+    if (depth >= 7) continue
+    for (const child of Object.values(value)) {
+      if (child && typeof child === 'object') queue.push({ value: child, depth: depth + 1 })
+    }
+  }
+  if (!best) return null
+  const text = best.desc || best.title
+  return text.length >= MIN_EMBEDDED_TEXT ? { title: best.title || null, text } : null
+}
+
+/** 同站跳转时保留小红书的 xsec_token；跨域跳转不把参数带出去。 */
+function carryQuery(previous, next) {
+  const from = new URL(previous)
+  const to = new URL(next)
+  if (to.hostname !== from.hostname) return to.toString()
+  for (const key of PRESERVED_QUERY) {
+    if (!to.searchParams.has(key) && from.searchParams.has(key)) to.searchParams.set(key, from.searchParams.get(key))
+  }
+  return to.toString()
+}
+
 async function fetchPublic(raw, fetchImpl) {
   let current = raw
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
@@ -71,7 +214,7 @@ async function fetchPublic(raw, fetchImpl) {
       headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', accept: 'text/html,application/xhtml+xml', 'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8' },
     })
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-      current = new URL(res.headers.get('location'), url).toString()
+      current = carryQuery(url.toString(), new URL(res.headers.get('location'), url).toString())
       continue
     }
     return { res, url }
@@ -105,6 +248,9 @@ async function readHtml(raw, fetchImpl) {
  */
 export async function harvestText(raw, fetchImpl = fetch) {
   const { html, url } = await readHtml(raw, fetchImpl)
+  // SSR 页面的正文优先从内嵌状态里取，剥标签只做兜底。
+  const embedded = embeddedPost(html)
+  if (embedded) return { url: url.toString(), title: embedded.title, text: embedded.text }
   const title = meta(html, ['og:title']) ?? decodeEntities(/<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1] ?? '')
   const body = html
     .replace(/<(script|style|noscript|svg|nav|footer|header|aside)\b[\s\S]*?<\/\1>/gi, ' ')

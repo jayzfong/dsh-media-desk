@@ -621,6 +621,29 @@ test('harvestText 抽出正文，去掉脚本和导航', async () => {
   await assert.rejects(harvestText('http://127.0.0.1/x'), /本机|内网/)
 })
 
+test('harvestText 优先读取 SSR 内嵌正文，找不到时才剥标签', async () => {
+  const desc = '这是小红书笔记的正文，包含具体场景和细节，足够长。'.repeat(4)
+  const page = `<html><head><title>小红书 - 你的生活兴趣社区</title></head><body><nav>登录后查看</nav><script>window.__INITIAL_STATE__={"note":{"noteDetailMap":{"abc":{"note":{"noteId":"abc","title":"内嵌标题","desc":"${desc}","likes":undefined}}}}}</script></body></html>`
+  const { text, title } = await harvestText('https://93.184.216.34/a', async () => new Response(page, { headers: { 'content-type': 'text/html' } }))
+  assert.equal(title, '内嵌标题')
+  assert.match(text, /这是小红书笔记的正文/)
+  assert.doesNotMatch(text, /登录后查看|__INITIAL_STATE__/)
+})
+
+test('harvestText 同站跳转时保留 xsec_token', async () => {
+  const seen = []
+  const page = '<html><body><p>页面正文内容足够长，可以正常提取。</p></body></html>'
+  const fetchImpl = async (url) => {
+    seen.push(String(url))
+    if (seen.length === 1) return new Response(null, { status: 302, headers: { location: '/next' } })
+    return new Response(page, { headers: { 'content-type': 'text/html' } })
+  }
+  await harvestText('https://93.184.216.34/start?xsec_token=token123&xsec_source=app_share', fetchImpl)
+  assert.equal(seen.length, 2)
+  assert.match(seen[1], /xsec_token=token123/)
+  assert.match(seen[1], /xsec_source=app_share/)
+})
+
 test('applyRevision 能改封面大字', () => {
   const p = revisable()
   const { receipts } = applyRevision(p, { coverText: '新大字' })
