@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { extractJson, fallbackArticle, fallbackPlan } from '../src/ai.js'
-import { assertPublicUrl, harvest, harvestText } from '../src/harvest.js'
+import { assertPublicUrl, embeddedPost, harvest, harvestText } from '../src/harvest.js'
 import { activeStyle, normalizeStyle, stylePrompts, styleToVoice } from '../src/style.js'
 import { articlePrompts, planPrompts } from '../src/ai.js'
 import { migrateState } from '../src/seed.js'
@@ -628,6 +628,14 @@ test('harvestText 优先读取 SSR 内嵌正文，找不到时才剥标签', asy
   assert.equal(title, '内嵌标题')
   assert.match(text, /这是小红书笔记的正文/)
   assert.doesNotMatch(text, /登录后查看|__INITIAL_STATE__/)
+})
+
+test('embeddedPost 也认 noteData 形态', async () => {
+  const desc = '这是另一种内嵌结构里的正文，内容足够长。'.repeat(4)
+  const page = `<script>window.__INITIAL_STATE__={"noteData":{"title":"另一种标题","desc":"${desc}"}}</script>`
+  const result = embeddedPost(page)
+  assert.equal(result.title, '另一种标题')
+  assert.match(result.text, /另一种内嵌结构/)
 })
 
 test('harvestText 同站跳转时保留 xsec_token', async () => {
