@@ -184,6 +184,7 @@ const handlers = {
     if (!production) throw new Error(tr('这条灵感还没有成稿'))
     if (typeof op.title === 'string') production.title = op.title.slice(0, 200)
     if (typeof op.coverText === 'string') production.coverText = op.coverText.slice(0, 40)
+    if (typeof op.coverPrompt === 'string' && production.cover) production.cover.prompt = op.coverPrompt.slice(0, 1200)
     if (typeof op.article === 'string') production.article = op.article.slice(0, 200000)
     if (Array.isArray(op.images)) {
       for (const [index, row] of op.images.entries()) {

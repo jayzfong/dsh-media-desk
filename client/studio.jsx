@@ -469,27 +469,36 @@ function Viewer({ item, production, mode = 'video', target, onChange, onClose })
   )
 }
 
-/** 小红书图文策划案：先确认每张卡片的标题和正文，再逐张生成图片。 */
+/** 小红书图文策划案：封面和每张图各一个输入框，减少字段。 */
 function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
   const [draft, setDraft] = React.useState(() => ({
     title: production?.title ?? '',
-    coverText: production?.coverText ?? '',
-    images: (production?.images ?? []).map(image => ({ title: image.title ?? '', body: image.body ?? '' })),
+    cover: production?.coverText ?? '',
+    images: (production?.images ?? []).map(image => [image.title, image.body].filter(Boolean).join('\n')),
   }))
   const [saving, setSaving] = React.useState(false)
-  const setImage = (index, key, value) => setDraft((current) => ({
+  const setImage = (index, value) => setDraft((current) => ({
     ...current,
-    images: current.images.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
+    images: current.images.map((row, i) => (i === index ? value : row)),
   }))
+  const splitCard = (value) => {
+    const [first, ...rest] = String(value ?? '').split('\n')
+    return { title: first.trim().slice(0, 40), body: rest.join('\n').trim().slice(0, 200) }
+  }
   const confirm = async () => {
     setSaving(true)
+    const coverLines = String(draft.cover ?? '').split('\n')
+    const coverText = coverLines[0]?.trim().slice(0, 20) ?? ''
+    const coverPrompt = coverLines.slice(1).join('\n').trim()
+    const cards = draft.images.map(splitCard)
     const saved = await dispatchOps([{
       op: 'update_production',
       id: item.id,
       mode,
       title: draft.title,
-      coverText: draft.coverText,
-      images: draft.images.map(({ title, body }) => ({ title, body })),
+      coverText,
+      coverPrompt,
+      images: cards,
     }], { label: t('确认小红书策划案'), silent: true })
     if (saved) await continueProduce(item.id, mode)
     setSaving(false)
@@ -499,29 +508,21 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
       <header className="md-plan-head">
         <div>
           <h2>{t('小红书图文策划案')}</h2>
-          <p>{readOnly ? t('已成稿：策划案仅供查看。') : t('先确认标题和每张卡片的文字，再开始生成；图片会一张一张生成。')}</p>
+          <p>{readOnly ? t('已成稿：策划案仅供查看。') : t('封面和每张图各写一段；卡片第一行是标题，后面是正文。确认后图片会一张一张生成。')}</p>
         </div>
         <span className="md-plan-count">{t('{n} 张', { n: draft.images.length, s: plural(draft.images.length, '', 's') })}</span>
       </header>
       <div className="md-plan-copy">
         <label className="md-field"><span>{t('笔记标题')}</span><input value={draft.title} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, title: e.target.value }))} maxLength={40} /></label>
-        <label className="md-field"><span>{t('封面大字')}</span><input value={draft.coverText} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, coverText: e.target.value }))} maxLength={20} /></label>
-      </div>
-      <div className="md-plan-cover">
-        <span className="md-plan-cover-badge">{t('封面')}</span>
-        <b>{draft.coverText || t('封面大字')}</b>
+        <label className="md-field"><span>{t('封面')}</span><textarea rows={2} value={draft.cover} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, cover: e.target.value }))} placeholder={t('第一行是封面大字，后面可以写画面描述')} /></label>
       </div>
       <div className="md-plan-cards">
-        {draft.images.map((image, index) => (
+        {draft.images.map((value, index) => (
           <article className="md-plan-card" key={index}>
             <span className="md-plan-no">{String(index + 1).padStart(2, '0')}</span>
             <label className="md-field">
-              <span>{t('卡片标题')}</span>
-              <input value={image.title} disabled={readOnly} onChange={e => setImage(index, 'title', e.target.value)} maxLength={30} placeholder={t('这一张的标题')} />
-            </label>
-            <label className="md-field">
-              <span>{t('卡片正文')}</span>
-              <textarea rows={3} value={image.body} disabled={readOnly} onChange={e => setImage(index, 'body', e.target.value)} maxLength={200} placeholder={t('这一张要讲的正文')} />
+              <span>{t('第 {n} 张', { n: index + 1 })}</span>
+              <textarea rows={5} value={value} disabled={readOnly} onChange={e => setImage(index, e.target.value)} placeholder={t('第一行是卡片标题，后面是正文')} />
             </label>
           </article>
         ))}
