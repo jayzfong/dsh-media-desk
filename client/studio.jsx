@@ -194,7 +194,7 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
       </div>
       <div className={`md-collage ${articleMode ? 'is-article' : ''}`}>
         <div className="md-collage-main"><Poster production={production} item={item} mode={mode} onOpen={() => onView('cover')} onRetry={settings?.imageReady && production?.status === 'done' && production.cover ? () => regenAsset(item.id, 'cover', mode) : undefined} /></div>
-        {showFigures ? figures.map((image, i) => <div key={i} className={`md-collage-side is-${i}`}><Plate asset={image} alt={image?.caption ?? t('配图 {n}', { n: i + 1 })} onOpen={image?.src ? () => onView(`image:${i}`) : undefined} onRetry={image && settings?.imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${i}`, mode) : undefined} /></div>) : null}
+        {showFigures ? figures.map((image, i) => <div key={i} className={`md-collage-side is-${i}`}><Plate asset={image} alt={image?.title ?? image?.caption ?? t('配图 {n}', { n: i + 1 })} onOpen={image?.src ? () => onView(`image:${i}`) : undefined} onRetry={image && settings?.imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${i}`, mode) : undefined} /></div>) : null}
       </div>
       <div className="md-hero-corner">
         {production?.savedAt ? <IconButton icon="folder" label={t('打开保存的文件夹')} onClick={() => revealSaved(item.id, mode)} /> : null}
@@ -232,8 +232,8 @@ function ArticleBody({ production, text, onView }) {
           <div className="md-prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(section.text) }} />
           {(placed.get(index) ?? []).map(({ image, i }) => (
             <figure key={i} className="md-article-figure">
-              <Plate asset={image} alt={image.caption} onOpen={() => onView(`image:${i}`)} />
-              {image.caption ? <figcaption>{image.caption}</figcaption> : null}
+              <Plate asset={image} alt={image.title || image.caption} onOpen={() => onView(`image:${i}`)} />
+              {image.title || image.caption ? <figcaption>{image.title || image.caption}</figcaption> : null}
             </figure>
           ))}
         </React.Fragment>
@@ -376,8 +376,8 @@ function FiguresTile({ item, production, count, open, onToggle, onView, mode = '
       <div className="md-figures">
         {cells.map((image, index) => (
           <figure key={index} className="md-figure">
-            <Plate asset={image} alt={image?.caption ?? t('配图 {n}', { n: index + 1 })} onOpen={image?.src ? () => onView(`image:${index}`) : undefined} onRetry={image && imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${index}`, mode) : undefined} />
-            {image?.caption ? <figcaption>{image.caption}</figcaption> : null}
+            <Plate asset={image} alt={image?.title ?? image?.caption ?? t('配图 {n}', { n: index + 1 })} onOpen={image?.src ? () => onView(`image:${index}`) : undefined} onRetry={image && imageReady && production?.status === 'done' ? () => regenAsset(item.id, `image:${index}`, mode) : undefined} />
+            {image?.title || image?.caption ? <figcaption>{image.title || image.caption}</figcaption> : null}
           </figure>
         ))}
       </div>
@@ -388,7 +388,7 @@ function FiguresTile({ item, production, count, open, onToggle, onView, mode = '
 function assetList(production, mode = 'video') {
   return [
     ...(production?.cover?.src || production?.cover ? [{ target: 'cover', asset: production.cover, label: mode === 'article' ? t('封面') : t('视频封面') }] : []),
-    ...(production?.images ?? []).map((asset, i) => ({ target: `image:${i}`, asset, label: t('配图 {n}', { n: i + 1 }), note: asset.caption })),
+    ...(production?.images ?? []).map((asset, i) => ({ target: `image:${i}`, asset, label: t('配图 {n}', { n: i + 1 }), note: asset.title || asset.caption })),
     ...(mode === 'video' ? (production?.shots ?? []).map((asset, i) => ({ target: `shot:${i}`, asset, label: t('第 {n} 镜', { n: i + 1 }), note: [asset.visual, asset.voice].filter(Boolean).join(' · '), paper: true })) : []),
   ]
 }

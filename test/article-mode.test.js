@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { articlePlanPrompts, articlePrompts } from '../src/ai.js'
+import { articleCardPrompt } from '../src/images.js'
 import { Producer } from '../src/produce.js'
 import { Settings } from '../src/settings.js'
 import { buildSeed } from '../src/seed.js'
@@ -19,6 +20,15 @@ test('小红书图文提示词：竖向配图、话题标签，不写口播分�
   const plan = articlePlanPrompts(state, item, { imageCount: 3, voice: '' }).system
   assert.match(plan, /3:4/)
   assert.match(plan, /不要输出 shots/)
+})
+
+test('小红书图卡提示词包含卡片标题正文，且不要编号', () => {
+  const prompt = articleCardPrompt('三个动作', '先收集，再去重，最后只留重点。', 'three cards on a desk')
+  assert.match(prompt, /标题：三个动作/)
+  assert.match(prompt, /正文：先收集/)
+  assert.match(prompt, /3:4/)
+  assert.match(prompt, /page numbers/i)
+  assert.doesNotMatch(prompt, /no text/i)
 })
 
 test('图文模式：只生成正文和配图，不生成视频分镜', async () => {

@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { articlePrompts, extractJson, fallbackArticle, fallbackPlan, planPrompts, shortCoverText } from './ai.js'
 import { tr } from './i18n.js'
-import { coverPrompt, figurePrompt, shotPrompt } from './images.js'
+import { articleCardPrompt, coverPrompt, figurePrompt, shotPrompt } from './images.js'
 import { normalizeMode, productionOf, storeProduction } from './modes.js'
 import { newId } from './ops.js'
 import { imageReady } from './settings.js'
@@ -24,7 +24,7 @@ function splitTitle(markdown, fallback) {
 export function normalizePlan(plan, settings, title, mode = 'video') {
   const text = (value, max = 400) => (typeof value === 'string' ? value.trim().slice(0, max) : '')
   const articleMode = normalizeMode(mode) === 'article'
-  const images = (Array.isArray(plan?.images) ? plan.images : []).slice(0, settings.imageCount).map(row => ({ caption: text(row?.caption, 60), anchor: text(row?.anchor, 60), prompt: text(row?.prompt, 1200) })).filter(row => row.prompt)
+  const images = (Array.isArray(plan?.images) ? plan.images : []).slice(0, settings.imageCount).map(row => ({ title: text(row?.title, 40), body: text(row?.body, 200), caption: text(row?.caption, 60), anchor: text(row?.anchor, 60), prompt: text(row?.prompt, 1200) })).filter(row => row.prompt)
   const shots = articleMode ? [] : (Array.isArray(plan?.shots) ? plan.shots : []).slice(0, settings.shotCount).map((row, index) => ({
     no: index + 1, shot: text(row?.shot, 12) || tr('中景'), visual: text(row?.visual, 200), voice: text(row?.voice, 200),
     seconds: Number.isFinite(row?.seconds) ? Math.max(1, Math.min(60, Math.round(row.seconds))) : 5, prompt: text(row?.prompt, 1200),
@@ -57,7 +57,9 @@ function assetAt(production, target) {
 function fullPrompt(production, target, asset) {
   const { kind } = parseTarget(target)
   if (kind === 'cover') return coverPrompt(asset.prompt)
-  if (kind === 'image') return figurePrompt(asset.prompt)
+  if (kind === 'image') return production.mode === 'article'
+    ? articleCardPrompt(asset.title || asset.caption, asset.body || asset.caption, asset.prompt)
+    : figurePrompt(asset.prompt)
   return shotPrompt(asset.prompt || asset.visual, production.characters)
 }
 
