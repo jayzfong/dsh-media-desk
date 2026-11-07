@@ -112,6 +112,8 @@ export const STUDIO = {
   '没画成，重画': 'Failed. Try again',
   '画这张': 'Generate image',
   '没画成': 'Failed',
+  '标题与封面': 'Title and cover',
+  '笔记标题、封面标题、封面副标题、封面画面、封面底部金句': 'Note title, cover title, cover subtitle, cover visual, cover closing line',
   '整体风格策划': 'Overall visual direction',
   '标题、副标题、画面、底部金句': 'Title, subtitle, visual, closing line',
   '标题、内容、画面、底部金句': 'Title, content, visual, closing line',

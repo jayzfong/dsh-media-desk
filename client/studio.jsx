@@ -480,13 +480,14 @@ function formatStylePlan(style) {
   return lines.join('\n')
 }
 
-function formatCoverPlan(production) {
+function formatMetaPlan(production) {
   const cover = production?.cover ?? {}
   return [
-    `标题：${production?.coverText ?? ''}`,
-    `副标题：${cover.subtitle ?? ''}`,
-    `画面：${cover.visual ?? cover.prompt ?? ''}`,
-    `底部金句：${cover.quote ?? ''}`,
+    `笔记标题：${production?.title ?? ''}`,
+    `封面标题：${production?.coverText ?? ''}`,
+    `封面副标题：${cover.subtitle ?? ''}`,
+    `封面画面：${cover.visual ?? cover.prompt ?? ''}`,
+    `封面底部金句：${cover.quote ?? ''}`,
   ].join('\n')
 }
 
@@ -503,7 +504,7 @@ function parsePlanSections(value) {
   const out = {}
   let current = ''
   for (const line of String(value ?? '').split('\n')) {
-    const match = /^(标题|副标题|内容|画面|底部金句)[：:]\s*(.*)$/.exec(line.trim())
+    const match = /^(笔记标题|封面标题|封面副标题|封面画面|封面底部金句|标题|副标题|内容|画面|底部金句)[：:]\s*(.*)$/.exec(line.trim())
     if (match) {
       current = match[1]
       out[current] = match[2]
@@ -517,9 +518,8 @@ function parsePlanSections(value) {
 /** 小红书图文策划案：整体风格 + 封面 + 每张图各一个输入框。 */
 function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
   const [draft, setDraft] = React.useState(() => ({
-    title: production?.title ?? '',
     style: production?.styleText || formatStylePlan(production?.stylePlan),
-    cover: formatCoverPlan(production),
+    meta: formatMetaPlan(production),
     images: (production?.images ?? []).map(formatCardPlan),
   }))
   const [saving, setSaving] = React.useState(false)
@@ -529,7 +529,7 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
   }))
   const confirm = async () => {
     setSaving(true)
-    const cover = parsePlanSections(draft.cover)
+    const meta = parsePlanSections(draft.meta)
     const cards = draft.images.map((value) => {
       const card = parsePlanSections(value)
       return {
@@ -543,13 +543,13 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
       op: 'update_production',
       id: item.id,
       mode,
-      title: draft.title,
+      title: (meta['笔记标题'] ?? '').slice(0, 200),
       styleText: draft.style,
-      coverText: (cover['标题'] ?? '').slice(0, 20),
-      coverSubtitle: (cover['副标题'] ?? '').slice(0, 200),
-      coverVisual: (cover['画面'] ?? '').slice(0, 600),
-      coverPrompt: (cover['画面'] ?? '').slice(0, 1200),
-      coverQuote: (cover['底部金句'] ?? '').slice(0, 160),
+      coverText: (meta['封面标题'] ?? '').slice(0, 20),
+      coverSubtitle: (meta['封面副标题'] ?? '').slice(0, 200),
+      coverVisual: (meta['封面画面'] ?? '').slice(0, 600),
+      coverPrompt: (meta['封面画面'] ?? '').slice(0, 1200),
+      coverQuote: (meta['封面底部金句'] ?? '').slice(0, 160),
       images: cards,
     }], { label: t('确认小红书策划案'), silent: true })
     if (saved) await continueProduce(item.id, mode)
@@ -568,8 +568,7 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
         <label className="md-field"><span>{t('整体风格策划')}</span><textarea rows={7} value={draft.style} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, style: e.target.value }))} /></label>
       </div>
       <div className="md-plan-copy">
-        <label className="md-field"><span>{t('笔记标题')}</span><input value={draft.title} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, title: e.target.value }))} maxLength={40} /></label>
-        <label className="md-field"><span>{t('封面')}</span><textarea rows={5} value={draft.cover} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, cover: e.target.value }))} placeholder={t('标题、副标题、画面、底部金句')} /></label>
+        <label className="md-field"><span>{t('标题与封面')}</span><textarea rows={7} value={draft.meta} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, meta: e.target.value }))} placeholder={t('笔记标题、封面标题、封面副标题、封面画面、封面底部金句')} /></label>
       </div>
       <div className="md-plan-cards">
         {draft.images.map((value, index) => (
@@ -711,11 +710,12 @@ export function Studio() {
   const settings = useDesk(s => s.settings)
   const chatOpen = useDesk(s => s.studioDock)
   const ref = React.useRef(null)
-  const [mode, setMode] = React.useState('video')
+  const [mode, setMode] = React.useState('article')
   // 打开一条灵感时，优先停在已有的成稿模式；都没有就回到视频
   React.useEffect(() => {
     if (!item) return
-    setMode(productionOf(item, 'video') ? 'video' : productionOf(item, 'article') ? 'article' : 'video')
+    // 成稿页默认展示小红书图文
+    setMode('article')
     // 只在换灵感时重置
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id])
