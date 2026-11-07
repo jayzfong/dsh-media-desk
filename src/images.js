@@ -102,9 +102,10 @@ const COVER_CARD_STYLE = 'Xiaohongshu note cover, 3:4 vertical portrait, off-whi
  * @param {string} prompt - 画面描述。
  * @returns {string} 生图提示词。
  */
-export function articleCardPrompt(title, body, prompt) {
-  const copy = [title && `标题：${title}`, body && `正文：${body}`].filter(Boolean).join('\n')
-  return `${CARD_STYLE} Render the following Simplified Chinese text exactly as written, legible and typographically clean, with no spelling changes, no extra words and no placeholders:\n${copy}\nVisual concept: ${prompt}\nDo not add page numbers, numbering, watermarks, logos, or extra headings. Keep the Chinese text inside the card.`
+export function articleCardPrompt(title, body, prompt, { style = '', quote = '' } = {}) {
+  const copy = [title && `标题：${title}`, body && `正文：${body}`, quote && `底部金句：${quote}`].filter(Boolean).join('\n')
+  const styleLine = style ? `\nOverall visual direction: ${String(style).slice(0, 1200)}` : ''
+  return `${CARD_STYLE} Render the following Simplified Chinese text exactly as written, legible and typographically clean, with no spelling changes, no extra words and no placeholders:\n${copy}${styleLine}\nVisual concept: ${prompt}\nDo not add page numbers, numbering, watermarks, logos, or extra headings. Keep the Chinese text inside the card.`
 }
 
 /**
@@ -114,9 +115,10 @@ export function articleCardPrompt(title, body, prompt) {
  * @param {string} prompt - 画面描述。
  * @returns {string} 生图提示词。
  */
-export function articleCoverPrompt(text, title, prompt) {
-  const copy = text ? `封面大字：${text}` : title ? `笔记标题：${title}` : ''
-  return `${COVER_CARD_STYLE} Render the following Simplified Chinese cover text exactly as written, large and legible, with no spelling changes and no extra words:\n${copy}\nVisual concept: ${prompt}\nDo not add page numbers, numbering, watermarks, logos, or extra copy.`
+export function articleCoverPrompt(text, title, prompt, { style = '', subtitle = '', quote = '' } = {}) {
+  const copy = [text && `封面大字：${text}`, subtitle && `副标题：${subtitle}`, quote && `底部金句：${quote}`].filter(Boolean).join('\n')
+  const styleLine = style ? `\nOverall visual direction: ${String(style).slice(0, 1200)}` : ''
+  return `${COVER_CARD_STYLE} Render the following Simplified Chinese cover text exactly as written, large and legible, with no spelling changes and no extra words:\n${copy}${styleLine}\nVisual concept: ${prompt}\nDo not add page numbers, numbering, watermarks, logos, or extra copy.`
 }
 
 export function coverPrompt(prompt) {

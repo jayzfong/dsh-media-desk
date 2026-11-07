@@ -469,35 +469,87 @@ function Viewer({ item, production, mode = 'video', target, onChange, onClose })
   )
 }
 
-/** 小红书图文策划案：封面和每张图各一个输入框，减少字段。 */
+function formatStylePlan(style) {
+  const value = style ?? {}
+  const lines = []
+  lines.push(`统一规格：${value.size || '3:4 竖版，1242 × 1660 px'}`)
+  lines.push(`统一风格：${value.styleName || '清爽知识库教程信息图'}`)
+  const suggestions = [...(value.palette ?? []), ...(value.elements ?? [])]
+  lines.push('建议使用：', ...(suggestions.length ? suggestions.map(row => `- ${row}`) : ['- 白色或浅米白背景', '- 图文卡片、箭头和简单界面示意', '- 不加图片编号，每张图只讲一个核心观点']))
+  if (value.rules?.length) lines.push('统一规则：', ...value.rules.map(row => `- ${row}`))
+  return lines.join('\n')
+}
+
+function formatCoverPlan(production) {
+  const cover = production?.cover ?? {}
+  return [
+    `标题：${production?.coverText ?? ''}`,
+    `副标题：${cover.subtitle ?? ''}`,
+    `画面：${cover.visual ?? cover.prompt ?? ''}`,
+    `底部金句：${cover.quote ?? ''}`,
+  ].join('\n')
+}
+
+function formatCardPlan(image) {
+  return [
+    `标题：${image?.title ?? ''}`,
+    `内容：${image?.body ?? ''}`,
+    `画面：${image?.visual ?? image?.prompt ?? ''}`,
+    `底部金句：${image?.quote ?? ''}`,
+  ].join('\n')
+}
+
+function parsePlanSections(value) {
+  const out = {}
+  let current = ''
+  for (const line of String(value ?? '').split('\n')) {
+    const match = /^(标题|副标题|内容|画面|底部金句)[：:]\s*(.*)$/.exec(line.trim())
+    if (match) {
+      current = match[1]
+      out[current] = match[2]
+    } else if (current) {
+      out[current] = [out[current], line].filter(Boolean).join('\n')
+    }
+  }
+  return out
+}
+
+/** 小红书图文策划案：整体风格 + 封面 + 每张图各一个输入框。 */
 function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
   const [draft, setDraft] = React.useState(() => ({
     title: production?.title ?? '',
-    cover: production?.coverText ?? '',
-    images: (production?.images ?? []).map(image => [image.title, image.body].filter(Boolean).join('\n')),
+    style: production?.styleText || formatStylePlan(production?.stylePlan),
+    cover: formatCoverPlan(production),
+    images: (production?.images ?? []).map(formatCardPlan),
   }))
   const [saving, setSaving] = React.useState(false)
   const setImage = (index, value) => setDraft((current) => ({
     ...current,
     images: current.images.map((row, i) => (i === index ? value : row)),
   }))
-  const splitCard = (value) => {
-    const [first, ...rest] = String(value ?? '').split('\n')
-    return { title: first.trim().slice(0, 40), body: rest.join('\n').trim().slice(0, 200) }
-  }
   const confirm = async () => {
     setSaving(true)
-    const coverLines = String(draft.cover ?? '').split('\n')
-    const coverText = coverLines[0]?.trim().slice(0, 20) ?? ''
-    const coverPrompt = coverLines.slice(1).join('\n').trim()
-    const cards = draft.images.map(splitCard)
+    const cover = parsePlanSections(draft.cover)
+    const cards = draft.images.map((value) => {
+      const card = parsePlanSections(value)
+      return {
+        title: (card['标题'] ?? '').slice(0, 40),
+        body: (card['内容'] ?? '').slice(0, 240),
+        visual: (card['画面'] ?? '').slice(0, 600),
+        quote: (card['底部金句'] ?? '').slice(0, 160),
+      }
+    })
     const saved = await dispatchOps([{
       op: 'update_production',
       id: item.id,
       mode,
       title: draft.title,
-      coverText,
-      coverPrompt,
+      styleText: draft.style,
+      coverText: (cover['标题'] ?? '').slice(0, 20),
+      coverSubtitle: (cover['副标题'] ?? '').slice(0, 200),
+      coverVisual: (cover['画面'] ?? '').slice(0, 600),
+      coverPrompt: (cover['画面'] ?? '').slice(0, 1200),
+      coverQuote: (cover['底部金句'] ?? '').slice(0, 160),
       images: cards,
     }], { label: t('确认小红书策划案'), silent: true })
     if (saved) await continueProduce(item.id, mode)
@@ -508,13 +560,16 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
       <header className="md-plan-head">
         <div>
           <h2>{t('小红书图文策划案')}</h2>
-          <p>{readOnly ? t('已成稿：策划案仅供查看。') : t('封面和每张图各写一段；卡片第一行是标题，后面是正文。确认后图片会一张一张生成。')}</p>
+          <p>{readOnly ? t('已成稿：策划案仅供查看。') : t('确认整体风格、封面和每张图的文字与画面，再开始逐张生成。')}</p>
         </div>
         <span className="md-plan-count">{t('{n} 张', { n: draft.images.length, s: plural(draft.images.length, '', 's') })}</span>
       </header>
+      <div className="md-plan-style">
+        <label className="md-field"><span>{t('整体风格策划')}</span><textarea rows={7} value={draft.style} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, style: e.target.value }))} /></label>
+      </div>
       <div className="md-plan-copy">
         <label className="md-field"><span>{t('笔记标题')}</span><input value={draft.title} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, title: e.target.value }))} maxLength={40} /></label>
-        <label className="md-field"><span>{t('封面')}</span><textarea rows={2} value={draft.cover} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, cover: e.target.value }))} placeholder={t('第一行是封面大字，后面可以写画面描述')} /></label>
+        <label className="md-field"><span>{t('封面')}</span><textarea rows={5} value={draft.cover} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, cover: e.target.value }))} placeholder={t('标题、副标题、画面、底部金句')} /></label>
       </div>
       <div className="md-plan-cards">
         {draft.images.map((value, index) => (
@@ -522,7 +577,7 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
             <span className="md-plan-no">{String(index + 1).padStart(2, '0')}</span>
             <label className="md-field">
               <span>{t('第 {n} 张', { n: index + 1 })}</span>
-              <textarea rows={5} value={value} disabled={readOnly} onChange={e => setImage(index, e.target.value)} placeholder={t('第一行是卡片标题，后面是正文')} />
+              <textarea rows={6} value={value} disabled={readOnly} onChange={e => setImage(index, e.target.value)} placeholder={t('标题、内容、画面、底部金句')} />
             </label>
           </article>
         ))}

@@ -24,17 +24,42 @@ function splitTitle(markdown, fallback) {
 export function normalizePlan(plan, settings, title, mode = 'video') {
   const text = (value, max = 400) => (typeof value === 'string' ? value.trim().slice(0, max) : '')
   const articleMode = normalizeMode(mode) === 'article'
-  const images = (Array.isArray(plan?.images) ? plan.images : []).slice(0, settings.imageCount).map(row => ({ title: text(row?.title, 40), body: text(row?.body, 200), caption: text(row?.caption, 60), anchor: text(row?.anchor, 60), prompt: text(row?.prompt, 1200) })).filter(row => row.prompt)
+  const images = (Array.isArray(plan?.images) ? plan.images : []).slice(0, settings.imageCount).map(row => ({
+    title: text(row?.title, 40),
+    body: text(row?.body, 240),
+    visual: text(row?.visual, 600),
+    quote: text(row?.quote, 160),
+    caption: text(row?.caption, 60),
+    anchor: text(row?.anchor, 60),
+    prompt: text(row?.prompt, 1200),
+  })).filter(row => row.prompt || row.visual)
   const shots = articleMode ? [] : (Array.isArray(plan?.shots) ? plan.shots : []).slice(0, settings.shotCount).map((row, index) => ({
     no: index + 1, shot: text(row?.shot, 12) || tr('中景'), visual: text(row?.visual, 200), voice: text(row?.voice, 200),
     seconds: Number.isFinite(row?.seconds) ? Math.max(1, Math.min(60, Math.round(row.seconds))) : 5, prompt: text(row?.prompt, 1200),
   })).filter(row => row.prompt || row.visual)
+  const style = plan?.style && typeof plan.style === 'object' ? plan.style : {}
+  const palette = (Array.isArray(style.palette) ? style.palette : []).map(row => text(row, 80)).filter(Boolean).slice(0, 8)
+  const elements = (Array.isArray(style.elements) ? style.elements : []).map(row => text(row, 100)).filter(Boolean).slice(0, 8)
+  const rules = (Array.isArray(style.rules) ? style.rules : []).map(row => text(row, 100)).filter(Boolean).slice(0, 8)
+  const stylePlan = {
+    size: text(style.size, 80) || '3:4 竖版，1242 × 1660 px',
+    styleName: text(style.styleName, 100) || '清爽知识库教程信息图',
+    palette: palette.length ? palette : ['白色或浅米白背景', '绿色为主色', '蓝绿色作辅助色'],
+    elements: elements.length ? elements : ['卡片、文件夹、箭头、流程图', '少量产品界面示意'],
+    rules: rules.length ? rules : ['不加图片编号', '每张图只讲一个核心观点'],
+  }
+  const cover = plan?.cover && typeof plan.cover === 'object' ? plan.cover : {}
   return {
     title: text(plan?.title, 60) || title,
     coverText: text(plan?.coverText, 24) || shortCoverText(title),
     facts: (Array.isArray(plan?.facts) ? plan.facts : []).map(row => text(row, 120)).filter(Boolean).slice(0, 8),
     outline: (Array.isArray(plan?.outline) ? plan.outline : []).map(row => text(row, 40)).filter(Boolean).slice(0, 6),
-    cover: text(plan?.cover, 1200) || title,
+    cover: text(cover.prompt, 1200) || text(plan?.cover, 1200) || title,
+    coverVisual: text(cover.visual, 800),
+    coverSubtitle: text(cover.subtitle, 200),
+    coverQuote: text(cover.quote, 160),
+    stylePlan,
+    styleText: text(plan?.styleText, 4000),
     characters: text(plan?.characters, 400),
     images,
     shots,
@@ -50,10 +75,27 @@ function planFromProduction(production) {
     facts: production.facts ?? [],
     outline: production.outline ?? [],
     cover: production.cover?.prompt || production.title,
+    coverVisual: production.cover?.visual ?? '',
+    coverSubtitle: production.cover?.subtitle ?? '',
+    coverQuote: production.cover?.quote ?? '',
+    stylePlan: production.stylePlan ?? {},
+    styleText: production.styleText ?? '',
     characters: production.characters ?? '',
-    images: (production.images ?? []).map(({ title = '', body = '', caption = '', anchor = '', prompt = '' }) => ({ title, body, caption, anchor, prompt })),
+    images: (production.images ?? []).map(({ title = '', body = '', visual = '', quote = '', caption = '', anchor = '', prompt = '' }) => ({ title, body, visual, quote, caption, anchor, prompt })),
     shots: production.shots ?? [],
   }
+}
+
+/** 把结构化风格方案排成可编辑文本，兼容旧成稿。 */
+export function stylePlanText(style) {
+  const value = style ?? {}
+  const lines = []
+  if (value.size) lines.push(`统一规格：${value.size}`)
+  if (value.styleName) lines.push(`统一风格：${value.styleName}`)
+  const suggestions = [...(value.palette ?? []), ...(value.elements ?? [])]
+  if (suggestions.length) lines.push('建议使用：', ...suggestions.map(row => `- ${row}`))
+  if (value.rules?.length) lines.push('统一规则：', ...value.rules.map(row => `- ${row}`))
+  return lines.join('\n')
 }
 
 function parseTarget(target) {
@@ -71,11 +113,12 @@ function assetAt(production, target) {
 
 function fullPrompt(production, target, asset) {
   const { kind } = parseTarget(target)
+  const style = production.styleText || stylePlanText(production.stylePlan)
   if (kind === 'cover') return production.mode === 'article'
-    ? articleCoverPrompt(production.coverText, production.title, asset.prompt)
+    ? articleCoverPrompt(production.coverText, production.title, asset.prompt || asset.visual, { style, subtitle: production.cover?.subtitle, quote: production.cover?.quote })
     : coverPrompt(asset.prompt)
   if (kind === 'image') return production.mode === 'article'
-    ? articleCardPrompt(asset.title || asset.caption, asset.body || asset.caption, asset.prompt)
+    ? articleCardPrompt(asset.title || asset.caption, asset.body || asset.caption, asset.prompt || asset.visual, { style, quote: asset.quote })
     : figurePrompt(asset.prompt)
   return shotPrompt(asset.prompt || asset.visual, production.characters)
 }
@@ -283,7 +326,9 @@ export class Producer {
             production.facts = plan.facts
             production.outline = plan.outline
             production.characters = plan.characters
-            production.cover = { prompt: plan.cover, status: 'idle' }
+            production.stylePlan = plan.stylePlan
+            production.styleText = plan.styleText || stylePlanText(plan.stylePlan)
+            production.cover = { prompt: plan.cover, visual: plan.coverVisual, subtitle: plan.coverSubtitle, quote: plan.coverQuote, status: 'idle' }
             production.images = plan.images.map(row => ({ ...row, status: 'idle' }))
             production.shots = []
             production.article = ''
@@ -305,7 +350,9 @@ export class Producer {
         production.facts = plan.facts
         production.outline = plan.outline
         production.characters = plan.characters
-        production.cover = { prompt: plan.cover, status: initial }
+        production.stylePlan = plan.stylePlan
+        production.styleText = plan.styleText || stylePlanText(plan.stylePlan)
+        production.cover = { prompt: plan.cover, visual: plan.coverVisual, subtitle: plan.coverSubtitle, quote: plan.coverQuote, status: initial }
         production.images = plan.images.map(row => ({ ...row, status: initial }))
         production.shots = plan.shots.map(row => ({ ...row, status: initial }))
         production.error = null

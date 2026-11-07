@@ -184,14 +184,25 @@ const handlers = {
     if (!production) throw new Error(tr('这条灵感还没有成稿'))
     if (typeof op.title === 'string') production.title = op.title.slice(0, 200)
     if (typeof op.coverText === 'string') production.coverText = op.coverText.slice(0, 40)
+    if (typeof op.styleText === 'string') production.styleText = op.styleText.slice(0, 4000)
     if (typeof op.coverPrompt === 'string' && production.cover) production.cover.prompt = op.coverPrompt.slice(0, 1200)
+    if (production.cover) {
+      if (typeof op.coverSubtitle === 'string') production.cover.subtitle = op.coverSubtitle.slice(0, 200)
+      if (typeof op.coverVisual === 'string') production.cover.visual = op.coverVisual.slice(0, 600)
+      if (typeof op.coverQuote === 'string') production.cover.quote = op.coverQuote.slice(0, 160)
+    }
     if (typeof op.article === 'string') production.article = op.article.slice(0, 200000)
     if (Array.isArray(op.images)) {
       for (const [index, row] of op.images.entries()) {
         const image = production.images?.[index]
         if (!image || !row || typeof row !== 'object') continue
         if (typeof row.title === 'string') image.title = row.title.slice(0, 40)
-        if (typeof row.body === 'string') image.body = row.body.slice(0, 200)
+        if (typeof row.body === 'string') image.body = row.body.slice(0, 240)
+        if (typeof row.visual === 'string') {
+          image.visual = row.visual.slice(0, 600)
+          if (typeof row.prompt !== 'string') image.prompt = row.visual.slice(0, 1200)
+        }
+        if (typeof row.quote === 'string') image.quote = row.quote.slice(0, 160)
       }
     }
     return { text: tr('修改《{title}》', { title: short(production.title) }), target: item.id, kind: 'item' }

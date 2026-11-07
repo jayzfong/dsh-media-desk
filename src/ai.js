@@ -211,11 +211,11 @@ ${voiceBlock(state, settings.voice)}
 /** 图文稿的策划案：只要标题、封面字、正文小标题和配图，不要视频分镜。 */
 export function articlePlanPrompts(state, item, settings) {
   const { angle } = itemBrief(state, item)
-  const system = `你是小红书内容主编和美术指导。根据一句灵感，定下这篇小红书图文笔记的策划案。
+  const system = `你是小红书内容主编和美术指导。根据一句灵感，定下这篇小红书图文笔记的完整策划案。
 只输出一个 JSON 对象，字段按下面的顺序：
-{"title":"小红书笔记标题，具体、有钩子，${byLang('不超过 20 字', '不超过 60 个字符')}","coverText":"小红书封面上的大字，要有冲击力，${byLang('不超过 10 字', '2 到 4 个英文单词，不超过 24 个字符')}","facts":["这条笔记用到的具体事实：数字、人名、案例，正文和配图都要照用，3 到 6 条"],"outline":["3 到 5 个小标题${byLang('', '，每个不超过 40 个字符')}"],"cover":"小红书封面画面描述（英文），3:4 竖版构图，主体突出，下方留出放大字的空间","characters":"反复出现的人物和场景的外观描述（英文），让每张图保持一致；没有就留空","images":[{"anchor":"这张图放在哪个小标题之后，原样抄写小标题","title":"这张卡片上的中文标题，${byLang('不超过 14 字', '不超过 8 个单词')}","body":"这张卡片上的中文正文，${byLang('30 到 70 字', '20 到 45 个英文单词')}，口语、具体、只讲一个点","caption":"${byLang('平实的中文图注，只说明画面内容，不超过 16 字', '平实的英文图注，只说明画面内容，不超过 8 个单词')}","prompt":"小红书配图画面描述（英文），3:4 竖版构图，适合手机浏览"}]}
+{"style":{"size":"3:4 竖版，1242 × 1660 px","styleName":"整套图的视觉风格名称，例如 清爽知识库教程信息图","palette":["主色和辅助色，例如 白色或浅米白背景、绿色为主色、蓝绿色作辅助色"],"elements":["常见视觉元素，例如 卡片、文件夹、箭头、流程图、少量产品界面示意"],"rules":["整套图必须遵守的规则，例如 不加图片编号、每张图只讲一个核心观点"]},"title":"小红书笔记标题，具体、有钩子，${byLang('不超过 20 字', '不超过 60 个字符')}","coverText":"小红书封面上的大字，要有冲击力，${byLang('不超过 10 字', '2 到 4 个英文单词，不超过 24 个字符')}","cover":{"subtitle":"封面副标题，${byLang('不超过 20 字', '不超过 40 个字符')}","visual":"封面的中文画面描述，说明画面里有什么、怎么构图","quote":"封面底部金句，${byLang('不超过 30 字', '不超过 60 个字符')}","prompt":"封面画面的英文生图描述，3:4 竖版构图，主体突出"},"facts":["这条内容用到的具体事实：数字、人名、案例，正文和配图都要照用，3 到 6 条"],"outline":["3 到 5 个小标题${byLang('', '，每个不超过 40 个字符')}"],"images":[{"anchor":"这张图放在哪个小标题之后，原样抄写小标题","title":"这张卡片上的中文标题，${byLang('不超过 14 字', '不超过 8 个单词')}","body":"这张卡片上的中文正文，${byLang('30 到 70 字', '20 到 45 个英文单词')}，口语、具体、只讲一个点","visual":"这张卡片的中文画面描述，说明元素、布局、颜色和构图","quote":"这张卡片底部的中文金句，${byLang('不超过 30 字', '不超过 60 个字符')}","prompt":"这条配图的英文生图描述，3:4 竖版构图，适合手机浏览"}]}
 images 正好 ${settings.imageCount} 个，全部按 3:4 竖版构图；每张只讲一个观点，图片上不显示编号；不要输出 shots，不要写分镜或口播。这是一篇小红书图文笔记，不是视频脚本。
-画面描述只写看得见的东西：主体、动作、环境、构图、光线；卡片上的中文只使用 title 和 body 字段，不要额外添加文字。
+整体风格要统一：同一个 style 里的配色、元素和规则要贯穿封面和所有配图。
 
 ${voiceBlock(state, settings.voice)}
 
@@ -259,12 +259,21 @@ export function fallbackPlan(item, article, settings, mode = 'video') {
     title: item.title,
     coverText: shortCoverText(item.title),
     outline: headings,
-    cover: mode === 'article' ? `A 3:4 vertical Xiaohongshu note cover image for: ${item.title}` : `A striking visual metaphor for: ${item.title}`,
+    cover: mode === 'article'
+      ? { visual: `围绕「${item.title}」的小红书知识卡片封面`, quote: '', prompt: `A 3:4 vertical Xiaohongshu note cover image for: ${item.title}` }
+      : `A striking visual metaphor for: ${item.title}`,
+    style: mode === 'article' ? {
+      size: '3:4 竖版，1242 × 1660 px',
+      styleName: '清爽知识库教程信息图',
+      palette: ['白色或浅米白背景', '绿色为主色', '蓝绿色作辅助色'],
+      elements: ['卡片、文件夹、箭头、流程图', '少量产品界面示意'],
+      rules: ['不加图片编号', '每张图只讲一个核心观点'],
+    } : undefined,
     images: Array.from({ length: settings.imageCount }, (_, i) => {
       const heading = headings[i] ?? headings[i + 1] ?? ''
       const cardTitle = (heading || item.title || '').slice(0, 14)
       const cardBody = (item.body || heading || item.title || '').replace(/\s+/g, ' ').slice(0, 70)
-      return { anchor: heading, title: mode === 'article' ? cardTitle : '', body: mode === 'article' ? cardBody : '', caption: '', prompt: mode === 'article' ? `A 3:4 vertical Xiaohongshu note image about: ${item.title}. ${heading}` : `An illustration about: ${item.title}. ${heading}` }
+      return { anchor: heading, title: mode === 'article' ? cardTitle : '', body: mode === 'article' ? cardBody : '', visual: mode === 'article' ? `围绕「${cardTitle}」的卡片画面` : '', quote: '', caption: '', prompt: mode === 'article' ? `A 3:4 vertical Xiaohongshu note image about: ${item.title}. ${heading}` : `An illustration about: ${item.title}. ${heading}` }
     }),
     shots: mode === 'article' ? [] : Array.from({ length: settings.shotCount }, (_, i) => {
       const beat = beats[i % beats.length]

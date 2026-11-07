@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { articlePlanPrompts, articlePrompts } from '../src/ai.js'
 import { articleCardPrompt, articleCoverPrompt } from '../src/images.js'
-import { Producer } from '../src/produce.js'
+import { normalizePlan, Producer } from '../src/produce.js'
 import { Settings } from '../src/settings.js'
 import { buildSeed } from '../src/seed.js'
 import { Store } from '../src/store.js'
@@ -20,6 +20,20 @@ test('小红书图文提示词：竖向配图、话题标签，不写口播分�
   const plan = articlePlanPrompts(state, item, { imageCount: 3, voice: '' }).system
   assert.match(plan, /3:4/)
   assert.match(plan, /不要输出 shots/)
+})
+
+test('小红书策划案包含整体风格、封面和每张图的完整字段', () => {
+  const plan = normalizePlan({
+    style: { size: '3:4 竖版，1242 × 1660 px', styleName: '清爽知识库教程信息图', palette: ['米白', '绿色'], elements: ['卡片'], rules: ['不编号'] },
+    title: '标题', coverText: '封面大字',
+    cover: { subtitle: '副标题', visual: '封面画面', quote: '封面金句', prompt: 'cover prompt' },
+    images: [{ title: '卡片标题', body: '卡片正文', visual: '卡片画面', quote: '卡片金句', prompt: 'card prompt' }],
+  }, { imageCount: 2, shotCount: 0 }, 'fallback', 'article')
+  assert.equal(plan.stylePlan.styleName, '清爽知识库教程信息图')
+  assert.equal(plan.coverSubtitle, '副标题')
+  assert.equal(plan.coverQuote, '封面金句')
+  assert.equal(plan.images[0].visual, '卡片画面')
+  assert.equal(plan.images[0].quote, '卡片金句')
 })
 
 test('小红书封面提示词包含封面大字', () => {
