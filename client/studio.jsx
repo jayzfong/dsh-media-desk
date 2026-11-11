@@ -87,10 +87,17 @@ function ProgressCard({ production, live, settings, mode = 'video' }) {
   )
 }
 
+const WRITING_MODES = [
+  { value: 'free', label: '自由编辑' },
+  { value: 'imitate', label: '仿写' },
+  { value: 'rewrite', label: '改写' },
+]
+
 /** 对话栏顶部：这条灵感，以及唯一的入口。 */
-function IdeaCard({ item, live, settings, production, mode = 'video' }) {
+function IdeaCard({ item, live, settings, production, mode = 'video', writingMode = 'free', setWritingMode, sourceUrl = '', setSourceUrl }) {
   const running = production?.status === 'running'
   const articleMode = mode === 'article'
+  const missingSource = articleMode && writingMode !== 'free' && !sourceUrl.trim()
   const styles = useDesk(s => s.state.styles ?? [])
   const activeId = useDesk(s => s.state.activeStyleId)
   return (
@@ -107,7 +114,15 @@ function IdeaCard({ item, live, settings, production, mode = 'video' }) {
           </select>
         </label>
       ) : null}
-      {!production || !['running', 'done', 'planned'].includes(production.status) ? <button type="button" className="md-go" onClick={() => runProduce(item.id, mode, { planOnly: articleMode })}>{articleMode ? t('生成小红书图文') : t('一键成稿')}</button> : null}
+      {articleMode ? (
+        <div className="md-writing-mode">
+          <span className="md-writing-mode-label">{t('写作模式')}</span>
+          <Segmented label={t('写作模式')} value={writingMode} onChange={setWritingMode} options={WRITING_MODES.map(row => ({ value: row.value, label: t(row.label) }))} />
+          {writingMode !== 'free' ? <input type="url" aria-label={t('参考链接')} value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder={t('粘贴参考链接，自动读取正文')} /> : null}
+          {missingSource ? <small>{t('仿写 / 改写需要先填参考链接')}</small> : null}
+        </div>
+      ) : null}
+      {!production || !['running', 'done', 'planned'].includes(production.status) ? <button type="button" className="md-go" disabled={missingSource} onClick={() => runProduce(item.id, mode, { planOnly: articleMode, writingMode, sourceUrl })}>{articleMode ? t('生成小红书图文') : t('一键成稿')}</button> : null}
       {running ? <ProgressCard production={{ ...production, id: item.id }} live={live} settings={settings} mode={mode} /> : null}
       {production?.status === 'failed' ? <p className="md-idea-hint is-error">{production.error}</p> : null}
       {!running && !settings?.imageReady ? <p className="md-idea-hint">{articleMode ? t('接入生图模型后，封面和小红书配图也会画好。') : t('接入生图模型后，封面和分镜也会画好。')}<button type="button" onClick={() => setDesk({ settingsOpen: true })}>{t('去接入')}</button></p> : null}
@@ -136,7 +151,7 @@ function Stat({ icon, value, unit }) {
 }
 
 /** 主视觉：渐变底、大标题、数字，右边是视频封面和配图的拼贴；图文模式展示 3:4 封面。 */
-function HeroTile({ item, live, production, mode = 'video', onView }) {
+function HeroTile({ item, live, production, mode = 'video', writingMode = 'free', sourceUrl = '', onView }) {
   const settings = useDesk(s => s.settings)
   const articleMode = mode === 'article'
   const running = production?.status === 'running'
@@ -174,7 +189,7 @@ function HeroTile({ item, live, production, mode = 'video', onView }) {
       title: t('重新成稿'),
       submitLabel: t('重新生成'),
       fields: [{ name: 'note', label: articleMode ? t('现在的小红书图文稿、封面和配图会被替换，也会再消耗一次模型额度。') : t('现在的文章、封面和分镜会被替换，也会再消耗一次模型额度。'), type: 'hidden' }],
-      onSubmit: () => runProduce(item.id, mode),
+      onSubmit: () => runProduce(item.id, mode, { planOnly: articleMode, writingMode, sourceUrl }),
     },
   })
   const figures = images.length ? images : [null, null].slice(0, settings?.imageCount ?? 2)
@@ -516,7 +531,7 @@ function parsePlanSections(value) {
 }
 
 /** 小红书图文策划案：整体风格 + 封面 + 每张图各一个输入框。 */
-function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
+function PlanEditor({ item, production, mode, readOnly = false, onClose, writingMode = 'free', sourceUrl = '' }) {
   const [draft, setDraft] = React.useState(() => ({
     style: production?.styleText || formatStylePlan(production?.stylePlan),
     meta: formatMetaPlan(production),
@@ -562,7 +577,7 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
           <h2>{t('小红书图文策划案')}</h2>
           <p>{readOnly ? t('已成稿：策划案仅供查看。') : t('确认整体风格、封面和每张图的文字与画面，再开始逐张生成。')}</p>
         </div>
-        <span className="md-plan-count">{t('{n} 张', { n: draft.images.length, s: plural(draft.images.length, '', 's') })}</span>
+        <span className="md-plan-count">{writingMode === 'imitate' ? t('仿写') : writingMode === 'rewrite' ? t('改写') : t('自由编辑')} · {t('{n} 张', { n: draft.images.length, s: plural(draft.images.length, '', 's') })}</span>
       </header>
       <div className="md-plan-style">
         <label className="md-field"><span>{t('整体风格策划')}</span><textarea rows={7} value={draft.style} disabled={readOnly} onChange={e => setDraft(current => ({ ...current, style: e.target.value }))} /></label>
@@ -584,12 +599,13 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
       <footer className="md-plan-foot">
         {readOnly ? (
           <>
+            <button type="button" className="md-btn" onClick={() => runProduce(item.id, mode, { planOnly: true, writingMode, sourceUrl })}>{t('重新策划')}</button>
             <span style={{ flex: 1 }} />
             <button type="button" className="md-btn" onClick={onClose}>{t('关闭策划案')}</button>
           </>
         ) : (
           <>
-            <button type="button" className="md-btn" disabled={saving} onClick={() => runProduce(item.id, mode, { planOnly: true })}>{t('重新策划')}</button>
+            <button type="button" className="md-btn" disabled={saving} onClick={() => runProduce(item.id, mode, { planOnly: true, writingMode, sourceUrl })}>{t('重新策划')}</button>
             <span style={{ flex: 1 }} />
             <button type="button" className="md-btn is-primary" disabled={saving} onClick={confirm}>{saving ? <span className="md-shimmer">{t('正在准备…')}</span> : t('确认，开始逐张生成')}</button>
           </>
@@ -599,7 +615,7 @@ function PlanEditor({ item, production, mode, readOnly = false, onClose }) {
   )
 }
 
-function Sheet({ item, live, mode, onModeChange, production }) {
+function Sheet({ item, live, mode, onModeChange, production, writingMode = 'free', sourceUrl = '' }) {
   const settings = useDesk(s => s.settings)
   const [open, setOpen] = React.useState(null)
   const [viewing, setViewing] = React.useState(null)
@@ -669,12 +685,12 @@ function Sheet({ item, live, mode, onModeChange, production }) {
   const planning = mode === 'article' && production?.status === 'running' && production?.stage === 'plan'
   const showPlan = planned || (mode === 'article' && planOpen)
   const content = showPlan ? (
-    <PlanEditor item={item} production={production} mode={mode} readOnly={!planned} onClose={() => setPlanOpen(false)} />
+    <PlanEditor item={item} production={production} mode={mode} readOnly={!planned} onClose={() => setPlanOpen(false)} writingMode={writingMode} sourceUrl={sourceUrl} />
   ) : planning ? (
     <div className="md-plan-loading"><span className="md-shimmer">{t('正在生成小红书策划案…')}</span></div>
   ) : (
     <div className={`md-bento ${open ? 'has-open' : ''}`} ref={bento}>
-      <HeroTile item={item} live={live} production={production} mode={mode} onView={setViewing} />
+      <HeroTile item={item} live={live} production={production} mode={mode} writingMode={writingMode} sourceUrl={sourceUrl} onView={setViewing} />
       <section {...tile('article')}>
         <ArticleTile item={item} live={live} production={production} mode={mode} open={open === 'article'} onToggle={() => toggle('article')} onView={setViewing} onPlan={mode === 'article' && production?.images?.length ? () => setPlanOpen(true) : undefined} tileRef={articleRef} />
       </section>
@@ -711,11 +727,15 @@ export function Studio() {
   const chatOpen = useDesk(s => s.studioDock)
   const ref = React.useRef(null)
   const [mode, setMode] = React.useState('article')
-  // 打开一条灵感时，优先停在已有的成稿模式；都没有就回到视频
+  const [writingMode, setWritingMode] = React.useState('free')
+  const [sourceUrl, setSourceUrl] = React.useState('')
+  // 打开一条灵感时，默认展示小红书图文
   React.useEffect(() => {
     if (!item) return
-    // 成稿页默认展示小红书图文
     setMode('article')
+    const article = productionOf(item, 'article')
+    setWritingMode(article?.writingMode ?? 'free')
+    setSourceUrl(article?.sourceUrl ?? '')
     // 只在换灵感时重置
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id])
@@ -768,7 +788,7 @@ export function Studio() {
               <h2>{t('成稿')}</h2>
             </>
           )}
-          top={<IdeaCard item={item} live={live} settings={settings} production={production} mode={mode} />}
+          top={<IdeaCard item={item} live={live} settings={settings} production={production} mode={mode} writingMode={writingMode} setWritingMode={setWritingMode} sourceUrl={sourceUrl} setSourceUrl={setSourceUrl} />}
           suggestions={production?.status === 'done' ? DONE_SUGGESTIONS.map(row => t(row)) : []}
           placeholder={running ? t('正在成稿，马上就好') : production?.status === 'done' ? t('想怎么改，直接说') : t('补充点想法，或者直接说要什么')}
           disabled={running}
@@ -776,7 +796,7 @@ export function Studio() {
         />
       </div>
       <button type="button" className="md-chat-toggle" aria-label={t('打开对话')} onClick={() => setDesk(s => ({ studioDock: !s.studioDock }))}><Icon name="chat" size={16} /></button>
-      <Sheet key={item.id} item={item} live={live} mode={mode} onModeChange={setMode} production={production} />
+      <Sheet key={item.id} item={item} live={live} mode={mode} onModeChange={setMode} production={production} writingMode={writingMode} sourceUrl={sourceUrl} />
     </div>
   )
 }

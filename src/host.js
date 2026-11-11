@@ -344,7 +344,11 @@ async function route(ctx, store, desk, req, res) {
       return json(res, 200, { state })
     }
     case 'produce': {
-      const started = await desk.producer.start(String(body.id), normalizeMode(body.mode), { planOnly: body.planOnly === true })
+      const started = await desk.producer.start(String(body.id), normalizeMode(body.mode), {
+        planOnly: body.planOnly === true,
+        writingMode: body.writingMode,
+        sourceUrl: body.sourceUrl,
+      })
       return json(res, 200, { started, state: await store.read() })
     }
     case 'produce/continue': {

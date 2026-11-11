@@ -95,9 +95,9 @@ export function closeItem() {
 }
 
 /** 一键成稿。图文先只出策划案，确认后再逐张生成。 */
-export async function runProduce(id, mode = 'video', { planOnly = false } = {}) {
+export async function runProduce(id, mode = 'video', { planOnly = false, writingMode = 'free', sourceUrl = '' } = {}) {
   try {
-    const data = await request('produce', { id, mode, planOnly })
+    const data = await request('produce', { id, mode, planOnly, writingMode, sourceUrl })
     setDesk({ state: data.state })
   } catch (err) {
     report(err)

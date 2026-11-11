@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { articlePrompts, extractJson, fallbackArticle, fallbackPlan, planPrompts, shortCoverText } from './ai.js'
 import { tr } from './i18n.js'
+import { harvestText } from './harvest.js'
 import { articleCardPrompt, articleCoverPrompt, coverPrompt, figurePrompt, shotPrompt } from './images.js'
 import { normalizeMode, productionOf, storeProduction } from './modes.js'
 import { newId } from './ops.js'
@@ -80,6 +81,10 @@ function planFromProduction(production) {
     coverQuote: production.cover?.quote ?? '',
     stylePlan: production.stylePlan ?? {},
     styleText: production.styleText ?? '',
+    writingMode: production.writingMode ?? 'free',
+    sourceUrl: production.sourceUrl ?? '',
+    sourceText: production.sourceText ?? '',
+    sourceTitle: production.sourceTitle ?? '',
     characters: production.characters ?? '',
     images: (production.images ?? []).map(({ title = '', body = '', visual = '', quote = '', caption = '', anchor = '', prompt = '' }) => ({ title, body, visual, quote, caption, anchor, prompt })),
     shots: production.shots ?? [],
@@ -239,17 +244,32 @@ export class Producer {
     }, { undoable: false })
   }
 
-  async start(id, mode = 'video', { planOnly = false } = {}) {
+  async start(id, mode = 'video', { planOnly = false, writingMode = 'free', sourceUrl = '' } = {}) {
     if (this.jobs.has(id)) return false
     const state = await this.store.read()
     const item = state.items.find(row => row.id === id)
     if (!item) throw Object.assign(new Error(tr('找不到这条灵感')), { status: 404 })
     const resolvedMode = normalizeMode(mode)
-    const job = { mode: resolvedMode, planOnly: Boolean(planOnly), fromPlan: false, stage: planOnly ? 'plan' : 'brief', text: '', planText: '', controller: new AbortController() }
+    const resolvedWritingMode = ['imitate', 'rewrite'].includes(writingMode) ? writingMode : 'free'
+    let sourceText = ''
+    let sourceTitle = ''
+    if (resolvedMode === 'article' && resolvedWritingMode !== 'free') {
+      const url = String(sourceUrl || '').trim()
+      if (!url) throw Object.assign(new Error(tr('请先填写参考链接')), { status: 400 })
+      try {
+        const page = await harvestText(url)
+        sourceText = page.text.slice(0, 30000)
+        sourceTitle = page.title || ''
+        if (sourceText.length < 60) throw new Error(tr('页面上几乎没有正文，可能需要登录'))
+      } catch (err) {
+        throw Object.assign(new Error(tr('读取参考链接失败：{error}', { error: err.message })), { status: 400 })
+      }
+    }
+    const job = { mode: resolvedMode, planOnly: Boolean(planOnly), fromPlan: false, stage: planOnly ? 'plan' : 'brief', text: '', planText: '', writingMode: resolvedWritingMode, sourceUrl, sourceText, sourceTitle, controller: new AbortController() }
     this.jobs.set(id, job)
     await this.store.mutate('开始成稿', (draft) => {
       const target = draft.items.find(row => row.id === id)
-      storeProduction(target, resolvedMode, { status: 'running', mode: resolvedMode, stage: job.stage, startedAt: new Date().toISOString(), title: target.title, article: '', cover: null, images: [], shots: [] })
+      storeProduction(target, resolvedMode, { status: 'running', mode: resolvedMode, stage: job.stage, startedAt: new Date().toISOString(), title: target.title, article: '', cover: null, images: [], shots: [], writingMode: resolvedWritingMode, sourceUrl, sourceText, sourceTitle })
       return draft
     }, { undoable: false })
     // 不等待：浏览器靠轮询拿进度
@@ -268,7 +288,11 @@ export class Producer {
     if (!production || !Array.isArray(production.images)) {
       throw Object.assign(new Error(tr('还没有可用的策划案')), { status: 400 })
     }
-    const job = { mode: resolvedMode, planOnly: false, fromPlan: true, stage: 'making', text: '', planText: '', controller: new AbortController() }
+    const job = {
+      mode: resolvedMode, planOnly: false, fromPlan: true, stage: 'making', text: '', planText: '',
+      writingMode: production.writingMode ?? 'free', sourceUrl: production.sourceUrl ?? '', sourceText: production.sourceText ?? '', sourceTitle: production.sourceTitle ?? '',
+      controller: new AbortController(),
+    }
     this.jobs.set(id, job)
     await this.patch(id, resolvedMode, (next) => {
       next.status = 'running'
@@ -305,7 +329,7 @@ export class Producer {
         const backup = normalizePlan(fallbackPlan(item, '', planSettings, mode), planSettings, item.title, mode)
 
         try {
-          const prompts = planPrompts(snapshot, item, planSettings, mode)
+          const prompts = planPrompts(snapshot, item, planSettings, mode, { writingMode: job.writingMode, sourceText: job.sourceText })
           const { text } = await this.callText({ ...prompts, maxTokens: 3000, light: true, signal: AbortSignal.any([signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]), onText: (delta) => { job.planText += delta } })
           plan = normalizePlan(extractJson(text), planSettings, item.title, mode)
         } catch (err) {
@@ -364,7 +388,7 @@ export class Producer {
         let notice = null
         let markdown = ''
         try {
-          const prompts = articlePrompts(snapshot, item, settings.voice, plan, mode)
+          const prompts = articlePrompts(snapshot, item, settings.voice, plan, mode, { writingMode: job.writingMode, sourceText: job.sourceText })
           const result = await this.callText({ ...prompts, maxTokens: 6000, signal: AbortSignal.any([signal, AbortSignal.timeout(TEXT_TIMEOUT_MS)]), onText: (delta) => { job.text += delta } })
           markdown = result.text
           engine = result.model

@@ -36,6 +36,16 @@ test('小红书策划案包含整体风格、封面和每张图的完整字段',
   assert.equal(plan.images[0].quote, '卡片金句')
 })
 
+test('仿写和改写会把参考正文放进策划提示词', () => {
+  const state = buildSeed(new Date('2026-11-06T10:00:00+08:00'))
+  const item = state.items[0]
+  const imitate = articlePlanPrompts(state, item, { imageCount: 2, voice: '' }, { writingMode: 'imitate', sourceText: '参考笔记原文：先讲结论，再讲故事。' }).system
+  assert.match(imitate, /参考笔记/)
+  assert.match(imitate, /先讲结论/)
+  const rewrite = articlePlanPrompts(state, item, { imageCount: 2, voice: '' }, { writingMode: 'rewrite', sourceText: '待改写原文：这是一段原文。' }).system
+  assert.match(rewrite, /待改写原文/)
+})
+
 test('小红书封面提示词包含封面大字', () => {
   const prompt = articleCoverPrompt('15个技能别全装', '别急着建库', 'a woman at a desk')
   assert.match(prompt, /封面大字：15个技能别全装/)
