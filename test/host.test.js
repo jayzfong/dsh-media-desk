@@ -491,7 +491,7 @@ test('applyRevision 忽略垃圾输入，整篇重写时去掉一级标题', () 
   assert.equal(p.article, '新的正文')
 })
 
-test('chatPrompts 只有成稿完成时才把成稿交给模型', () => {
+test('chatPrompts 把已完成或已策划的成稿交给模型', () => {
   const state = seed()
   const item = state.items[0]
   assert.doesNotMatch(chatPrompts(state, 'x', { focusId: item.id }).user, /<production>/)
@@ -499,6 +499,8 @@ test('chatPrompts 只有成稿完成时才把成稿交给模型', () => {
   const prompts = chatPrompts(state, 'x', { focusId: item.id })
   assert.match(prompts.user, /<production>.*独特正文/)
   assert.match(prompts.system, /revise/)
+  item.production.status = 'planned'
+  assert.match(chatPrompts(state, 'x', { focusId: item.id }).user, /<production>/)
   item.production.status = 'running'
   assert.doesNotMatch(chatPrompts(state, 'x', { focusId: item.id }).user, /<production>/)
 })

@@ -113,7 +113,8 @@ async function chatTurn(ctx, store, desk, body) {
   try {
     const history = snapshot.chat.filter(row => (row.itemId ?? null) === (focusId ?? null))
     const { system, user } = chatPrompts(snapshot, message, { focusId, history, mode })
-    const editing = productionOf(snapshot.items.find(row => row.id === focusId), mode)?.status === 'done'
+    const activeProduction = productionOf(snapshot.items.find(row => row.id === focusId), mode)
+    const editing = activeProduction && ['done', 'planned'].includes(activeProduction.status)
     const { text, model } = await callModel(ctx, { system, user, maxTokens: editing ? 8000 : 2000, light: true, signal: AbortSignal.timeout(editing ? 240_000 : 90_000) })
     engine = model
     try {
@@ -132,7 +133,8 @@ async function chatTurn(ctx, store, desk, body) {
   // 只把真正改了数据的那一步放进撤销；问一句话不占撤销位
   const changed = await store.mutate(tr('对话：{text}', { text: message.slice(0, 18) }), (draft) => {
     const target = focusId ? draft.items.find(row => row.id === focusId) : null
-    const production = productionOf(target, mode)?.status === 'done' ? productionOf(target, mode) : null
+    const currentProduction = productionOf(target, mode)
+    const production = currentProduction && ['done', 'planned'].includes(currentProduction.status) ? currentProduction : null
     // 本地规则只会改灵感标题；有成稿时要改的是成稿标题
     const ops = (Array.isArray(plan.ops) ? plan.ops : []).map((op) => {
       if (production && op?.op === 'update_item' && op.id === focusId && typeof op.title === 'string') return { op: 'update_production', id: focusId, title: op.title, mode }

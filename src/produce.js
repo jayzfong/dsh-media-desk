@@ -151,6 +151,19 @@ export function applyRevision(production, revise, { canDraw = true } = {}) {
     production.coverText = coverText
     receipts.push(tr('封面大字改成「{text}」', { text: coverText }))
   }
+  const styleText = text(revise?.styleText, 4000)
+  if (styleText && styleText !== production.styleText) {
+    production.styleText = styleText
+    receipts.push(tr('更新了整体风格策划'))
+  }
+  if (production.cover) {
+    const subtitle = text(revise?.cover?.subtitle, 200)
+    if (subtitle) production.cover.subtitle = subtitle
+    const visual = text(revise?.cover?.visual, 600)
+    if (visual) production.cover.visual = visual
+    const quote = text(revise?.cover?.quote, 160)
+    if (quote) production.cover.quote = quote
+  }
   if (typeof revise?.article === 'string' && revise.article.trim()) {
     production.article = revise.article.replace(/^\s*#\s+.*\n?/, '').trim().slice(0, 200000)
     receipts.push(tr('重写了脚本'))
@@ -176,6 +189,10 @@ export function applyRevision(production, revise, { canDraw = true } = {}) {
   for (const row of Array.isArray(revise?.images) ? revise.images.slice(0, 8) : []) {
     const image = production.images?.[Number(row?.no) - 1]
     if (!image) continue
+    for (const [key, max] of [['title', 40], ['body', 240], ['visual', 600], ['quote', 160]]) {
+      const value = text(row[key], max)
+      if (value) image[key] = value
+    }
     const caption = text(row.caption, 40)
     if (caption) image.caption = caption
     const prompt = text(row.prompt, 1200)

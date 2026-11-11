@@ -101,24 +101,30 @@ platform 只能取：公众号、小红书、抖音、B站、视频号、X。`
 
 const REVISE_DOC = () => `
 用户正在看这条灵感已经做好的成稿（<production> 里）。用户要改标题、脚本、封面、配图或分镜时，在 JSON 里加一个 revise 字段，只写要改的部分：
-"revise":{"title":"新标题","coverText":"新的封面大字","edits":[{"find":"脚本里要替换的原文，必须一字不差且足够长、不会重复","replace":"新内容"}],"article":"需要大改整篇时才给完整的 Markdown 脚本（不含一级标题），否则不要这个字段","cover":{"prompt":"新的封面画面描述（英文）"},"images":[{"no":1,"caption":"图注","prompt":"新的画面描述（英文）"}],"shots":[{"no":3,"shot":"${byLang('景别', '景别（英文，如 Close-up）')}","visual":"画面（${byLang('中文', '英文')}）","voice":"口播（${byLang('中文', '英文')}）","seconds":5,"prompt":"新的构图描述（英文）"}]}
+"revise":{"styleText":"改整体风格时给完整的新风格文本","title":"新标题","coverText":"新的封面大字","edits":[{"find":"脚本里要替换的原文，必须一字不差且足够长、不会重复","replace":"新内容"}],"article":"需要大改整篇时才给完整的 Markdown 脚本（不含一级标题），否则不要这个字段","cover":{"subtitle":"新的封面副标题","visual":"新的封面画面描述（中文）","quote":"新的封面底部金句","prompt":"新的封面画面描述（英文）"},"images":[{"no":1,"title":"新的卡片标题","body":"新的卡片内容","visual":"新的卡片画面描述（中文）","quote":"新的底部金句","caption":"图注","prompt":"新的画面描述（英文）"}],"shots":[{"no":3,"shot":"${byLang('景别', '景别（英文，如 Close-up）')}","visual":"画面（${byLang('中文', '英文')}）","voice":"口播（${byLang('中文', '英文')}）","seconds":5,"prompt":"新的构图描述（英文）"}]}
 只改一小段时用 edits，不要重写全文。要换画面就必须给新的 prompt，画面描述只写看得见的东西，不放文字。要改的是成稿时不要用 ops 改 title，也不要用 produce。reply 里说清楚改了什么。`
 
 function productionBrief(production) {
   return {
+    status: production.status,
+    stage: production.stage,
     mode: production.mode ?? 'video',
+    writingMode: production.writingMode ?? 'free',
     title: production.title,
     coverText: production.coverText,
     article: production.article,
-    cover: production.cover?.prompt,
-    images: (production.images ?? []).map((row, i) => ({ no: i + 1, caption: row.caption, prompt: row.prompt })),
+    stylePlan: production.stylePlan ?? {},
+    styleText: production.styleText ?? '',
+    cover: { prompt: production.cover?.prompt, subtitle: production.cover?.subtitle, visual: production.cover?.visual, quote: production.cover?.quote },
+    images: (production.images ?? []).map((row, i) => ({ no: i + 1, title: row.title, body: row.body, visual: row.visual, quote: row.quote, caption: row.caption, prompt: row.prompt })),
     shots: (production.shots ?? []).map((row, i) => ({ no: i + 1, shot: row.shot, visual: row.visual, voice: row.voice, seconds: row.seconds, prompt: row.prompt })),
   }
 }
 
 export function chatPrompts(state, message, { focusId, history = [], now = new Date(), mode = 'video' }) {
   const focused = focusId ? state.items.find(row => row.id === focusId) : null
-  const production = productionOf(focused, mode)?.status === 'done' ? productionOf(focused, mode) : null
+  const foundProduction = productionOf(focused, mode)
+  const production = foundProduction && ['done', 'planned'].includes(foundProduction.status) ? foundProduction : null
   const system = `你是 DeepSeek Harness「自媒体工作台」插件里的助手。用户用一句话管理选题、灵感、内容、排期、数据、风格和写作规则。判断用户想做什么，然后把它变成结构化操作。
 
 只输出一个 JSON 对象，不要输出别的内容：
