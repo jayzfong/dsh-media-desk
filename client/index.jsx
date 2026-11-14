@@ -10,19 +10,20 @@ import { ScheduleView } from './schedule.jsx'
 import { SettingsDialog } from './settings.jsx'
 import { Studio } from './studio.jsx'
 import css from './styles.css'
-import { lang, subscribeLang, t, useLang } from './i18n.js'
+import { subscribeLang, t, useLang } from './i18n.js'
 import { Dialog, FormDialog, Icon, IconButton, Toast } from './ui.jsx'
 
 const PANEL_ID = 'media-desk'
 
 // navKey：同一个中文在别处意思不同（单数的“灵感”“风格”），英文导航另查一条
 const NAV = [
-  { id: 'home', label: '灵感', navKey: '灵感（导航）' },
-  { id: 'content', label: '内容' },
-  { id: 'schedule', label: '排期' },
-  { id: 'insights', label: '复盘' },
-  { id: 'style', label: '风格', navKey: '风格（导航）' },
+  { id: 'home', label: '灵感', railLabel: '灵感库', icon: 'scatter', navKey: '灵感（导航）' },
+  { id: 'content', label: '内容', railLabel: '内容库', icon: 'wall' },
+  { id: 'schedule', label: '排期', railLabel: '排期', icon: 'calendar' },
+  { id: 'insights', label: '复盘', railLabel: '复盘', icon: 'bolt' },
+  { id: 'style', label: '风格', railLabel: '风格库', icon: 'pen', navKey: '风格（导航）' },
 ]
+const RAIL_GROUPS = [{ label: '创作', ids: ['home', 'content'] }, { label: '运营', ids: ['schedule', 'insights', 'style'] }]
 
 const VIEWS = { home: HomeView, content: ContentView, schedule: ScheduleView, insights: InsightsView, style: StyleView }
 
@@ -153,13 +154,31 @@ function Desk() {
     <div className={`md-root ${narrow ? 'is-narrow' : ''} ${width < 780 ? 'is-compact' : ''} ${showDock ? 'has-dock' : ''}`} ref={rootRef}>
       <style>{css}</style>
       <div className="md-ambient" aria-hidden="true"><i /><i /><i /></div>
+      <aside className="md-rail" aria-label={t('工作台导航')}>
+        <div className="md-rail-brand"><span className="md-rail-mark">M</span><span><b>{t('自媒体工作台')}</b><small>CREATOR STUDIO</small></span></div>
+        {RAIL_GROUPS.map(group => (
+          <div className="md-rail-group" key={group.label}>
+            <div className="md-rail-label">{t(group.label)}</div>
+            <nav className="md-rail-nav">
+              {NAV.filter(entry => group.ids.includes(entry.id)).map(entry => (
+                <button type="button" key={entry.id} className={view === entry.id && !focused ? 'is-on' : ''} aria-current={view === entry.id ? 'page' : undefined} onClick={() => setDesk({ view: entry.id, focusId: null })}>
+                  <Icon name={entry.icon} size={16} /><span>{t(entry.railLabel ?? entry.label)}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        ))}
+        <div className="md-rail-spacer" />
+        <button type="button" className="md-rail-assistant" onClick={() => setDesk(focused ? { studioDock: true } : { dockOpen: true })}>
+          <span className="md-rail-assistant-top"><i /> {t('AI 创作助手')}</span>
+          <span>{t('帮你改标题、顺稿子，也能直接调策划案。')}</span>
+          <b>{t('打开对话')}</b>
+        </button>
+        <div className="md-rail-user"><span className="md-rail-avatar">J</span><span>Jiez 的工作区</span></div>
+      </aside>
       <div className="md-main">
         <header className="md-topbar" data-window-drag="">
-          <nav className="md-nav" aria-label={t('工作台导航')}>
-            {NAV.map(entry => (
-              <button type="button" key={entry.id} className={view === entry.id ? 'is-on' : ''} aria-current={view === entry.id ? 'page' : undefined} onClick={() => setDesk({ view: entry.id, focusId: null })}>{entry.navKey && lang() === 'en' ? t(entry.navKey) : t(entry.label)}</button>
-            ))}
-          </nav>
+          <div className="md-topbar-crumb">{t('工作台')} <span>/</span> <b>{t(NAV.find(entry => entry.id === view)?.label ?? '灵感')}</b></div>
           <span style={{ flex: 1 }} />
           {ready ? <SampleBadge /> : null}
           {canUndo ? <IconButton icon="undo" label={t('撤销上一步')} onClick={undo} /> : null}
