@@ -895,10 +895,8 @@ button.md-receipt:hover { transform: translateX(2px); }
 .md-rail-avatar { width: 26px; height: 26px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--active); color: var(--ink2); font-size: 11px; }
 .md-topbar-crumb { display: flex; align-items: center; gap: 7px; color: var(--ink3); font-size: 11px; }
 .md-topbar-crumb b { color: var(--ink2); font-weight: 500; }
-.md-root.is-narrow .md-rail { --rail-w: 72px; width: var(--rail-w); padding-left: 8px; padding-right: 8px; }
-.md-root.is-narrow .md-rail-brand span:not(.md-rail-mark), .md-root.is-narrow .md-rail-label, .md-root.is-narrow .md-rail-nav button span, .md-root.is-narrow .md-rail-assistant, .md-root.is-narrow .md-rail-user span:not(.md-rail-avatar) { display: none; }
-.md-root.is-narrow .md-rail-brand { justify-content: center; padding-left: 0; padding-right: 0; }
-.md-root.is-narrow .md-rail-nav button { justify-content: center; padding: 0; }
+.md-root.is-narrow .md-rail { --rail-w: 214px; padding-left: 12px; padding-right: 12px; }
+.md-root.is-narrow .md-rail-label { display: block; }
 .md-root.is-compact .md-rail { display: none; }
 
 /* Studio: keep the creation area full-width; AI chat becomes a right drawer */
