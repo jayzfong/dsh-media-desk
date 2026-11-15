@@ -44,13 +44,15 @@ function BoardCard({ item: raw }) {
   )
 }
 
+const BOARD_STATUSES = ['idea', 'draft', 'ready', 'published']
+
 function Board({ items }) {
   const [over, setOver] = React.useState(null)
   return (
     <div className="md-board">
-      {STATUSES.map((status) => {
-        // 还停留在灵感状态的分支只是发散草图，不占看板的位置
-        const rows = items.filter(i => i.status === status && !(i.parentId && i.status === 'idea'))
+      {BOARD_STATUSES.map((status) => {
+        // 大纲和灵感都还在前期，放在同一列推进；分支草图不占看板位置
+        const rows = items.filter(i => (status === 'idea' ? (i.status === 'idea' || i.status === 'outline') : i.status === status) && !(i.parentId && (i.status === 'idea' || i.status === 'outline')))
         return (
           <section
             key={status}

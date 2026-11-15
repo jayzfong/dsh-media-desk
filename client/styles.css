@@ -924,7 +924,7 @@ button.md-receipt:hover { transform: translateX(2px); }
 .md-content-page .md-seg button { height: 28px; font-size: 11px; color: #81786A; }
 .md-content-page .md-seg button.is-on { background: #FFFDF8; color: #211F1A; }
 .md-content-new { height: 34px; font-size: 11px; border-color: #201E1A; background: #201E1A; color: #FCFAF5; }
-.md-content-page .md-board { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; padding-bottom: 16px; }
+.md-content-page .md-board { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; padding-bottom: 16px; }
 .md-content-page .md-board-col { min-height: 520px; padding: 12px; border: 1px solid #E3DCCE; border-radius: 18px; background: #EFE9DE; box-shadow: none; }
 .md-content-page .md-board-col > header { padding: 2px 4px 12px; }
 .md-content-page .md-board-col > header h3 { color: #706758; font-size: 12px; font-weight: 500; }
