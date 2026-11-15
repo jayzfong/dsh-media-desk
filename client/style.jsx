@@ -136,7 +136,9 @@ export function StyleView() {
         </div>
         <button type="button" className="md-btn is-primary" onClick={() => setAdding('text')}>＋ {t('添加我的风格')}</button>
       </header>
-      <div className="md-style-page">
+      <div className="md-style-layout">
+        <div className="md-style-main">
+          <div className="md-style-page">
         <section className="md-tile md-i-hero md-style-hero">
           <div className="md-hero-copy">
             <h1 className="md-i-line">
@@ -182,6 +184,19 @@ export function StyleView() {
             {!proposed.length && !rules.length ? <li className="md-muted md-rule-empty">{t('在对话里说「以后标题都不要超过 20 个字」，这里就会多一条。')}</li> : null}
           </ul>
         </section>
+          </div>
+        </div>
+        <aside className="md-style-detail">
+          <span className="md-style-detail-badge">{active ? t('当前风格 · 使用中') : t('还没有选风格')}</span>
+          <h2>{active ? active.name : t('选一张风格卡')}</h2>
+          <p>{active?.summary || t('从我的风格或内置风格里挑一张，开始写作。')}</p>
+          {active?.samples?.[0] ? <blockquote>{active.samples[0]}</blockquote> : null}
+          <div className="md-style-detail-meta">
+            <div><span>{t('来源')}</span><b>{active ? (active.preset ? t(active.category) : active.source ?? t('我的风格')) : '—'}</b></div>
+            <div><span>{t('规则')}</span><b>{skills.length} {t('条')}</b></div>
+            <div><span>{t('最近使用')}</span><b>{active ? t('刚刚') : '—'}</b></div>
+          </div>
+        </aside>
       </div>
       {adding ? <AddStyleDialog initialTab={adding} onClose={() => setAdding(null)} onConnect={() => { setAdding(null); setConnecting(true) }} /> : null}
       {connecting ? <ConnectDialog onClose={() => setConnecting(false)} /> : null}
