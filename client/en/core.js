@@ -7,6 +7,7 @@ export const CORE = {
   '灵感库': 'Ideas',
   '灵感': 'Idea',
   '内容库': 'Content',
+  '新建内容': 'New content',
   '内容': 'Content',
   '排期': 'Schedule',
   '复盘': 'Insights',
