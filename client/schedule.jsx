@@ -1,6 +1,6 @@
 // 排期：发布排期和灵感日历是同一张日历。每天一张灵感邮票，发布的内容从右边拖上来。
 import React from 'react'
-import { dispatchOps, openItem, useDesk } from './desk.js'
+import { dispatchOps, openItem, setDesk, useDesk } from './desk.js'
 import { lang, t, useLang } from './i18n.js'
 import { Stamp, useDayMap } from './stamps.jsx'
 import { IconButton } from './ui.jsx'
@@ -190,7 +190,15 @@ export function ScheduleView() {
   useLang()
   const items = useDesk(s => s.state.items)
   return (
-    <div className="md-board-page">
+    <div className="md-board-page md-workspace-page">
+      <header className="md-workspace-head">
+        <div>
+          <span className="md-page-eyebrow">{t('PUBLISHING CALENDAR')}</span>
+          <h1>{t('排期')}</h1>
+          <p>{t('把做好的内容放到日历上，剩下的交给节奏。')}</p>
+        </div>
+        <button type="button" className="md-btn is-primary" onClick={() => setDesk({ capture: { tab: 'text' } })}>＋ {t('新建排期')}</button>
+      </header>
       <div className="md-schedule">
         <Calendar items={items} />
         <Rail items={items} />

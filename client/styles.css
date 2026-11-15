@@ -947,3 +947,33 @@ button.md-receipt:hover { transform: translateX(2px); }
 .md-board-page .md-cal-tile { background: var(--card); }
 .md-board-page .md-i-hero { background: var(--card); }
 .md-board-page .md-style-hero { background: var(--card); }
+
+/* Shared page header for schedule / insights / style */
+.md-board-page.md-workspace-page { background: #F4F1E9; padding: 88px 30px 30px; }
+.md-workspace-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.md-workspace-head .md-page-eyebrow { display: block; margin-bottom: 8px; color: #C15F3E; font-size: 10px; line-height: 15px; letter-spacing: .12em; }
+.md-workspace-head h1 { margin: 0; color: #1B1A17; font-family: "Songti SC", "Noto Serif SC", Georgia, serif; font-size: 34px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; }
+.md-workspace-head p { margin: 7px 0 0; color: #8D8577; font-size: 11px; line-height: 1.6; }
+.md-workspace-page .md-btn.is-primary { border-color: #201E1A; background: #201E1A; color: #FCFAF5; }
+
+/* Studio page bar */
+.md-sheet-top { flex: none; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px 8px 10px; }
+.md-sheet-crumb { display: flex; align-items: center; gap: 6px; color: var(--ink3); font-size: 10.5px; }
+.md-sheet-crumb b { color: var(--ink2); font-weight: 500; }
+.md-sheet-top-actions { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+.md-sheet-saved { color: var(--ink3); font-size: 9.5px; }
+.md-sheet-top + .md-bento, .md-sheet-top + .md-plan, .md-sheet-top + .md-plan-loading { min-height: 0; }
+
+/* Dialog and form refresh */
+.md-dialog-mask { background: #211E1838; backdrop-filter: blur(4px); }
+.md-dialog { border: 1px solid #E5DDCF; border-radius: 18px; background: #FFFDF8; color: #1B1A17; padding: 20px 22px 22px; box-shadow: 0 30px 100px #322A2040; }
+.md-root .md-dialog-head h2 { font-family: "Songti SC", "Noto Serif SC", Georgia, serif; font-size: 22px; font-weight: 500; }
+.md-capture-tabs { background: #F0EADF; }
+.md-capture-tabs button { color: #978D7E; font-size: 11px; }
+.md-capture-tabs button.is-on { background: #FFFDF8; color: #2E281F; }
+.md-form { gap: 13px; }
+.md-field > span { color: #8E8475; font-size: 10.5px; }
+.md-field small { color: #A69C8C; font-size: 9px; }
+.md-root .md-field input, .md-root .md-field select, .md-root .md-field textarea { border-color: #E4DCCE; background: #FFFDF8; color: #4A4135; font-size: 12px; }
+.md-root .md-field input, .md-root .md-field select { height: 34px; }
+.md-form-section h3 { color: #8E8475; font-size: 10.5px; }

@@ -707,9 +707,13 @@ function Sheet({ item, live, mode, onModeChange, production, writingMode = 'free
   )
   return (
     <div className="md-sheet">
-      <div className="md-sheet-tabs">
-        <Segmented label={t('成稿模式')} value={mode} onChange={onModeChange} options={[{ value: 'video', label: t('视频') }, { value: 'article', label: t('图文') }]} />
-      </div>
+      <header className="md-sheet-top">
+        <div className="md-sheet-crumb">工作台 <span>/</span> 成稿 <span>/</span> <b>{mode === 'article' ? t('小红书图文') : t('视频')}</b></div>
+        <div className="md-sheet-top-actions">
+          <Segmented label={t('成稿模式')} value={mode} onChange={onModeChange} options={[{ value: 'video', label: t('视频') }, { value: 'article', label: t('图文') }]} />
+          {production?.status === 'done' ? <span className="md-sheet-saved">{t('已保存')}</span> : null}
+        </div>
+      </header>
       {content}
       {viewing ? <Viewer item={item} production={production} mode={mode} target={viewing} onChange={setViewing} onClose={() => setViewing(null)} /> : null}
     </div>

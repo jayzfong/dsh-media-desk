@@ -178,9 +178,20 @@ export function InsightsView() {
       <button type="button" className="md-pill" onClick={importCsv}><Icon name="upload" size={14} />{t('粘贴 CSV')}</button>
     </div>
   )
+  const pageHead = (
+    <header className="md-workspace-head">
+      <div>
+        <span className="md-page-eyebrow">{t('PERFORMANCE REVIEW')}</span>
+        <h1>{t('复盘')}</h1>
+        <p>{t('数据进来，规则出去。把做过的事变成下一次的判断。')}</p>
+      </div>
+      <button type="button" className="md-btn is-primary" onClick={() => setConnecting(true)}>{t('导入账号数据')}</button>
+    </header>
+  )
   if (!metrics.length) {
     return (
-      <div className="md-board-page">
+      <div className="md-board-page md-workspace-page">
+        {pageHead}
         <section className="md-tile md-i-hero is-empty">
           <div className="md-hero-copy">
             <h1 className="md-i-line">{t('发布之后，把数据录进来，')}<br />{t('这里就开始替你复盘。')}</h1>
@@ -192,7 +203,8 @@ export function InsightsView() {
     )
   }
   return (
-    <div className="md-board-page">
+    <div className="md-board-page md-workspace-page">
+      {pageHead}
       <div className="md-insights">
         <section className="md-tile md-i-hero">
           <div className="md-hero-copy">

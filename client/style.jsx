@@ -127,7 +127,15 @@ export function StyleView() {
     </li>
   )
   return (
-    <div className="md-board-page">
+    <div className="md-board-page md-workspace-page">
+      <header className="md-workspace-head">
+        <div>
+          <span className="md-page-eyebrow">{t('VOICE & STYLE')}</span>
+          <h1>{t('风格库')}</h1>
+          <p>{t('让每篇稿子听起来都像同一个你。')}</p>
+        </div>
+        <button type="button" className="md-btn is-primary" onClick={() => setConnecting(true)}>{t('抓我的账号')}</button>
+      </header>
       <div className="md-style-page">
         <section className="md-tile md-i-hero md-style-hero">
           <div className="md-hero-copy">
