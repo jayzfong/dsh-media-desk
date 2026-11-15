@@ -148,29 +148,26 @@ export function ContentView() {
   const [mode, setMode] = React.useState('board')
   const items = useContentItems()
   const query = useDesk(s => s.query)
-  const counts = STATUSES.map(s => items.filter(i => i.status === s && !(i.parentId && s === 'idea')).length)
-  const drafts = items.filter(i => i.production?.status === 'done' || i.drafts?.article || i.drafts?.script).length
   return (
     <div className="md-page md-content-page">
-      <header className="md-page-head">
-        <div className="md-page-heading">
+      <header className="md-content-head">
+        <div>
           <span className="md-page-eyebrow">{t('CONTENT LIBRARY')}</span>
           <h1>{t('内容库')}</h1>
-          <p className="md-page-sub">{[
-            t(plural(items.length, '共 1 条', '共 {n} 条'), { n: items.length }),
-            t(plural(counts[0], '1 个灵感待推进', '{n} 个灵感待推进'), { n: counts[0] }),
-            t('{n} 篇已成稿', { n: drafts }),
-            t('{n} 篇已发布', { n: counts[4] }),
-          ].join(' · ')}</p>
+          <p className="md-page-sub">{t('从灵感到成稿，按状态排好；一眼看到下一步。')}</p>
         </div>
-        <span style={{ flex: 1 }} />
+        <button type="button" className="md-btn is-primary md-content-new" onClick={() => setDesk({ capture: { tab: 'text' } })}><Icon name="plus" size={13} />{t('新建内容')}</button>
+      </header>
+      <div className="md-content-toolbar">
         <label className="md-search">
           <Icon name="search" size={15} />
           <input value={query} onChange={e => setDesk({ query: e.target.value })} placeholder={t('搜索标题、标签、平台')} aria-label={t('搜索内容')} />
         </label>
+        <button type="button" className="md-btn md-content-filter">{t('全部平台')}</button>
+        <button type="button" className="md-btn md-content-filter">{t('全部状态')}</button>
+        <span className="md-content-toolbar-spacer" />
         <Segmented label={t('显示方式')} value={mode} onChange={setMode} options={[{ value: 'board', label: t('看板') }, { value: 'table', label: t('表格') }]} />
-        <button type="button" className="md-btn is-primary md-content-new" onClick={() => setDesk({ capture: { tab: 'text' } })}><Icon name="plus" size={13} />{t('新建内容')}</button>
-      </header>
+      </div>
       {items.length === 0 ? <Empty title={query ? t('没有匹配的内容') : t('还没有内容')} hint={query ? t('换个关键词试试。') : t('到灵感页记下第一条。')} /> : mode === 'board' ? <Board items={items} /> : <Table items={items} />}
     </div>
   )

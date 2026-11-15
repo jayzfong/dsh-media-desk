@@ -8,6 +8,7 @@ export const CORE = {
   '灵感': 'Idea',
   '内容库': 'Content',
   '新建内容': 'New content',
+  '从灵感到成稿，按状态排好；一眼看到下一步。': 'From idea to finished post, arranged by stage so the next step is obvious.',
   '内容': 'Content',
   '排期': 'Schedule',
   '复盘': 'Insights',

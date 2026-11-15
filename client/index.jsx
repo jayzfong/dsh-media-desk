@@ -178,7 +178,7 @@ function Desk() {
       </aside>
       <div className="md-main">
         <header className="md-topbar" data-window-drag="">
-          <div className="md-topbar-crumb">{t('工作台')} <span>/</span> <b>{t(NAV.find(entry => entry.id === view)?.label ?? '灵感')}</b></div>
+          <div className="md-topbar-crumb">{t('工作台')} <span>/</span> <b>{t(NAV.find(entry => entry.id === view)?.railLabel ?? '灵感库')}</b></div>
           <span style={{ flex: 1 }} />
           {ready ? <SampleBadge /> : null}
           {canUndo ? <IconButton icon="undo" label={t('撤销上一步')} onClick={undo} /> : null}
