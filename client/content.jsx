@@ -168,7 +168,15 @@ export function ContentView() {
         <span className="md-content-toolbar-spacer" />
         <Segmented label={t('显示方式')} value={mode} onChange={setMode} options={[{ value: 'board', label: t('看板') }, { value: 'table', label: t('表格') }]} />
       </div>
-      {items.length === 0 ? <Empty title={query ? t('没有匹配的内容') : t('还没有内容')} hint={query ? t('换个关键词试试。') : t('到灵感页记下第一条。')} /> : mode === 'board' ? <Board items={items} /> : <Table items={items} />}
+      {items.length === 0 ? <Empty title={query ? t('没有匹配的内容') : t('还没有内容')} hint={query ? t('换个关键词试试。') : t('到灵感页记下第一条。')} /> : mode === 'board' ? (
+        <>
+          <Board items={items} />
+          <div className="md-content-all">
+            <div className="md-content-all-head"><h2>{t('全部内容')}</h2><span>{t('按最近修改排序')}</span></div>
+            <Table items={items} />
+          </div>
+        </>
+      ) : <Table items={items} />}
     </div>
   )
 }

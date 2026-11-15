@@ -705,6 +705,7 @@ function Sheet({ item, live, mode, onModeChange, production, writingMode = 'free
       )}
     </div>
   )
+  const boardAssets = mode === 'article' ? (production?.images ?? []) : (production?.shots ?? [])
   return (
     <div className="md-sheet">
       <header className="md-sheet-top">
@@ -714,6 +715,22 @@ function Sheet({ item, live, mode, onModeChange, production, writingMode = 'free
           {production?.status === 'done' ? <span className="md-sheet-saved">{t('已保存')}</span> : null}
         </div>
       </header>
+      {!showPlan && !planning && (production?.cover?.src || boardAssets.length) ? (
+        <div className="md-storyboard" aria-label={mode === 'article' ? t('配图列表') : t('分镜列表')}>
+          {mode === 'article' && production?.cover?.src ? (
+            <button type="button" className="md-story-thumb is-cover" onClick={() => setViewing('cover')} aria-label={t('查看封面')}>
+              <img src={production.cover.src} alt="" draggable={false} />
+              <span>{t('封面')}</span>
+            </button>
+          ) : null}
+          {boardAssets.slice(0, 8).map((asset, index) => (
+            <button type="button" key={index} className="md-story-thumb" onClick={() => setViewing(mode === 'article' ? `image:${index}` : `shot:${index}`)} aria-label={mode === 'article' ? t('查看配图 {n}', { n: index + 1 }) : t('查看第 {n} 镜', { n: index + 1 })}>
+              {asset?.src ? <img src={asset.src} alt="" draggable={false} /> : <i>{String(index + 1).padStart(2, '0')}</i>}
+              <span>{mode === 'article' ? (asset?.title || asset?.caption || t('第 {n} 张', { n: index + 1 })) : t('第 {n} 镜', { n: index + 1 })}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       {content}
       {viewing ? <Viewer item={item} production={production} mode={mode} target={viewing} onChange={setViewing} onClose={() => setViewing(null)} /> : null}
     </div>

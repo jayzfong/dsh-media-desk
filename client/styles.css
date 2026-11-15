@@ -977,3 +977,17 @@ button.md-receipt:hover { transform: translateX(2px); }
 .md-root .md-field input, .md-root .md-field select, .md-root .md-field textarea { border-color: #E4DCCE; background: #FFFDF8; color: #4A4135; font-size: 12px; }
 .md-root .md-field input, .md-root .md-field select { height: 34px; }
 .md-form-section h3 { color: #8E8475; font-size: 10.5px; }
+
+.md-content-all { margin-top: 26px; }
+.md-content-all-head { display: flex; align-items: baseline; gap: 10px; margin: 0 2px 10px; }
+.md-content-all-head h2 { margin: 0; color: #4B4236; font: 500 18px/1.3 "Songti SC", "Noto Serif SC", serif; }
+.md-content-all-head span { color: #9B9182; font-size: 9.5px; }
+
+/* Studio storyboard strip */
+.md-storyboard { flex: none; display: flex; gap: 8px; padding: 0 8px 12px; overflow-x: auto; }
+.md-story-thumb { flex: 0 0 84px; width: 84px; padding: 4px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); color: var(--ink3); text-align: left; }
+.md-story-thumb:hover { border-color: var(--ink3); }
+.md-story-thumb img { display: block; width: 100%; height: 104px; object-fit: cover; border-radius: 6px; background: var(--hover); }
+.md-story-thumb i { display: flex; width: 100%; height: 104px; align-items: center; justify-content: center; border-radius: 6px; background: var(--hover); color: var(--ink3); font: 11px/1 "Iowan Old Style", Georgia, serif; font-style: normal; }
+.md-story-thumb span { display: block; max-width: 100%; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; line-height: 12px; }
+.md-story-thumb.is-cover { border-color: #D7B58F; }
