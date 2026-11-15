@@ -1015,3 +1015,29 @@ button.md-receipt:hover { transform: translateX(2px); }
 /* Video storyboards use 16:9 frames like the design canvas */
 .md-tile-shots .md-shots { grid-template-rows: none; grid-auto-rows: max-content; align-content: start; }
 .md-tile-shots .md-shot .md-plate { flex: none; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+
+/* Mobile: keep new page structures readable when the rail collapses */
+.md-root.is-compact .md-content-page { padding: 78px 16px 24px; }
+.md-root.is-compact .md-content-head { display: block; }
+.md-root.is-compact .md-content-new { margin-top: 13px; }
+.md-root.is-compact .md-content-toolbar { flex-wrap: wrap; }
+.md-root.is-compact .md-content-toolbar .md-search { flex: 1 1 100%; width: 100%; }
+.md-root.is-compact .md-content-toolbar-spacer { display: none; }
+.md-root.is-compact .md-content-page .md-board { grid-template-columns: minmax(0, 1fr); }
+.md-root.is-compact .md-content-page .md-board-col { min-height: 180px; }
+.md-root.is-compact .md-workspace-page { padding: 78px 16px 24px; }
+.md-root.is-compact .md-workspace-head { display: block; }
+.md-root.is-compact .md-workspace-head .md-btn { margin-top: 13px; }
+.md-root.is-compact .md-schedule { grid-template-columns: minmax(0, 1fr); height: auto; }
+.md-root.is-compact .md-sheet-top { padding-left: 4px; }
+.md-root.is-compact .md-storyboard { padding-left: 4px; }
+
+/* Studio: give the editor and preview distinct columns */
+.md-studio .md-bento { grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 16px; }
+.md-studio .md-tile-hero { min-height: 230px; padding: 22px 24px; }
+.md-studio .md-tile-article { min-height: 380px; }
+.md-studio .md-tile-images { min-height: 380px; }
+@media (max-width: 780px) {
+  .md-studio .md-bento { grid-template-columns: minmax(0, 1fr); }
+  .md-studio .md-tile-article, .md-studio .md-tile-images { min-height: 300px; }
+}
