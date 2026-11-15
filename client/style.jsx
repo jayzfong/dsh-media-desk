@@ -134,7 +134,7 @@ export function StyleView() {
           <h1>{t('风格库')}</h1>
           <p>{t('让每篇稿子听起来都像同一个你。')}</p>
         </div>
-        <button type="button" className="md-btn is-primary" onClick={() => setConnecting(true)}>{t('抓我的账号')}</button>
+        <button type="button" className="md-btn is-primary" onClick={() => setAdding('text')}>＋ {t('添加我的风格')}</button>
       </header>
       <div className="md-style-page">
         <section className="md-tile md-i-hero md-style-hero">
