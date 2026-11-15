@@ -1011,3 +1011,7 @@ button.md-receipt:hover { transform: translateX(2px); }
 .md-style-detail-meta div { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; color: #9B9182; font-size: 9px; border-bottom: 1px solid #F3EDE3; }
 .md-style-detail-meta b { color: #625849; font-weight: 400; text-align: right; }
 @media (max-width: 1100px) { .md-style-layout { grid-template-columns: minmax(0, 1fr); } .md-style-detail { display: none; } }
+
+/* Video storyboards use 16:9 frames like the design canvas */
+.md-tile-shots .md-shots { grid-template-rows: none; grid-auto-rows: max-content; align-content: start; }
+.md-tile-shots .md-shot .md-plate { flex: none; width: 100%; height: auto; aspect-ratio: 16 / 9; }
